@@ -131,7 +131,7 @@ int main(){
 
 	//Defining the values of the members of constant	
 	constant.h = 0.1;
-	constant.f = 4;
+	constant.f = 0.0;
 
 	//Allocating memory to the members of the Field u	
 	Field *u = allocate_field( N_Cells_x, N_Cells_y );
@@ -172,7 +172,7 @@ int main(){
 	set_bc(u);
 
 	//Starting the iteration loop
-	for(t=0;t<10000;t++){
+	for(t=0;t<100000;t++){
 		
 		//Making the temp field zero after every iteration
 		for(i=0;i<N_Cells;i++){
