@@ -123,7 +123,7 @@ int main(){
 	//Defining a constant of type Constant
 	Constant constant;
 	
-	//Defining the number of control volumes with ghost cells
+	//Defining the number of control volumes which includes the ghost cells
 	int Nx,Ny,N;
 	int N_Cells_x = Nx = 100+2;
 	int N_Cells_y = Ny = 100+2;
@@ -156,6 +156,10 @@ int main(){
 	//Equating the address of the field u to the member u of the domain
 	domain.u = u;
 
+	//Assigning different flags to different boundary conditions
+	set_ghosts(domain);
+
+
 	//initialization
 	for(i=0;i<N_Cells;i++){
 	//	l=i%N_Cells_x;
@@ -164,37 +168,50 @@ int main(){
 		temp->val[i] = 0.0;
 	}
 
-	//Assigning boundaries its values
+	//Assigning the ghost cells the respective boundary face values
 	set_bc(u);
 
 	//Starting the iteration loop
-	for(t=0;t<100;t++){
+	for(t=0;t<10000;t++){
 		
 		//Making the temp field zero after every iteration
 		for(i=0;i<N_Cells;i++){
 			temp->val[i] = 0.0;
 		}
+
+
+		double u_E, u_W, u_N, u_S, u_P;
 	
-		for(i=0;i<N_Cells;i++){ //might get segmentation fault
-			l=i%N_Cells_x;
-			m=(int) i/N_Cells_x;
+		for(i=0;i<N_Cells;i++){
+			if(u->bc[i] == NONE){ 
+				l=i%N_Cells_x;
+				m=(int) i/N_Cells_x;
+
+				u_E = u->val[EAST];
+				u_W = u->val[WEST];
+				u_N = u->val[NORTH];
+				u_S = u->val[SOUTH];
+				u_P = u->val[P];
 			
-			if(l==1)		temp->val[P] += 2.0*(u->val[WEST]) - u->val[P];
-			else if(l!=0) 		temp->val[P] += u->val[WEST];
-			if(l==N_Cells_x-2) 	temp->val[P] += 2.0*(u->val[EAST]) - u->val[P];
-			else if(l!=N_Cells_x-1)	temp->val[P] += u->val[EAST];
-			if(m==1)		temp->val[P] += 2.0*(u->val[SOUTH]) - u->val[P];
-			else if(m!=0)		temp->val[P] += u->val[SOUTH];
-			if(m==N_Cells_y-2)	temp->val[P] += 2.0*(u->val[NORTH]) - u->val[P];
-			else if(m!=N_Cells_y-1)	temp->val[P] += u->val[NORTH];
+				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
+				else 	 		temp->val[P] += u_W;
+				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
+				else 			temp->val[P] += u_E;
+				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
+				else 			temp->val[P] += u_S;
+				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
+				else 			temp->val[P] += u_N;
  
-			temp->val[P] -= constant.f*pow(constant.h,2);
-			temp->val[P] = temp->val[P]/4.0;
+				temp->val[P] -= constant.f*pow(constant.h,2);
+				temp->val[P] = temp->val[P]/4.0;
+			}
 		}
 	
 		//Transferring values from temp to u
 		for(i=0;i<N_Cells;i++){
-			u->val[i] = temp->val[i];
+			if(u->bc[i] == NONE){
+				u->val[i] = temp->val[i];
+			}
 		}
 		
 	} 
@@ -211,7 +228,6 @@ int main(){
 	fclose(fp);	
 
 
-return 0;
 }
 
 
