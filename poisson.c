@@ -61,7 +61,7 @@ struct _Constant{
 
 
 //declaring functions
-void set_ghosts(Domain);
+//void set_ghosts(Domain);
 //void set_bc(Field);
 static Field *allocate_field(int,int);
 //void jacobi1(Field , int, int, Constant);
@@ -87,9 +87,10 @@ void set_ghosts(Domain domain){
 		}
 	}return;
 }
-void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
 
-	double res;	
+void jacobi(Field *phi, int Nx, int Ny, Constant constant){
+
+	double res, e;	
 	int i, l, m, t;
 	int N_Cells_x = Nx;
 	int N_Cells_y = Ny;
@@ -98,10 +99,17 @@ void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
 
 	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
 	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+
+	//making res 1 so that it enters into the loop	
+	res = 1.0;
 	
 	//Starting the iteration loop
-	for(t=0;t<100000;t++){
-		
+	//for(t=0;t<10000;t++){
+	while(res > pow(10,-10)){	
+	
+	//making res 0 so that any error greated than 0 can be equated to this
+	res = 0.0;
+
 		//Making the temp field zero after every iteration
 		for(i=0;i<N_Cells;i++){
 			temp->val[i] = 0.0;
@@ -132,6 +140,10 @@ void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
  
 				temp->val[P] -= constant.f*pow(constant.h,2);
 				temp->val[P] = temp->val[P]/4.0;
+	
+				e = temp->val[P] - phi->val[P];
+				if(e > res)	res = e; 
+
 			}
 		}
 	
@@ -141,11 +153,88 @@ void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
 				phi->val[i] = temp->val[i];
 			}
 		}
-	}return;
+		
+		t++;
+	}
 
-
+	printf("Maximum residual is %e and number of iterations are %d\n", res, t);	
+	return;
 }
 
+void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
+
+	double res, e;	
+	int i, l, m, t;
+	int N_Cells_x = Nx;
+	int N_Cells_y = Ny;
+	int N = Nx * Ny;
+	int N_Cells = N;
+
+	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
+	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+
+	//making res 1 so that it enters into the loop	
+	res = 1.0;
+	
+	//Starting the iteration loop
+	//for(t=0;t<10000;t++){
+	while(res > pow(10,-10)){	
+	
+	//making res 0 so that any error greated than 0 can be equated to this
+	res = 0.0;
+
+		//Making the temp field zero after every iteration
+		for(i=0;i<N_Cells;i++){
+			temp->val[i] = 0.0;
+		}
+
+
+		double u_E, u_W, u_N, u_S, u_P;
+	
+		for(i=0;i<N_Cells;i++){
+			if(phi->bc[i] == NONE){ 
+				l=i%N_Cells_x;
+				m=(int) i/N_Cells_x;
+
+				u_E = phi->val[EAST];
+				u_W = phi->val[WEST];
+				u_N = phi->val[NORTH];
+				u_S = phi->val[SOUTH];
+				u_P = phi->val[P];
+			
+				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
+				else 	 		temp->val[P] += u_W;
+				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
+				else 			temp->val[P] += u_E;
+				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
+				else 			temp->val[P] += u_S;
+				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
+				else 			temp->val[P] += u_N;
+ 
+				temp->val[P] -= constant.f*pow(constant.h,2);
+				temp->val[P] = temp->val[P]/4.0;
+	
+				e = temp->val[P] - phi->val[P];
+				if(e > res)	res = e; 
+		
+				phi->val[P] = temp->val[P];
+
+			}
+		}
+	
+		//Transferring values from temp to u
+		for(i=0;i<N_Cells;i++){
+			if(phi->bc[i] == NONE){
+				phi->val[i] = temp->val[i];
+			}
+		}
+		
+		t++;
+	}
+
+	printf("Maximum residual is %e and number of iterations are %d\n", res, t);	
+	return;
+}
 
 void set_bc(Field *phi){
 
@@ -166,6 +255,7 @@ void set_bc(Field *phi){
 			else if(m==N_Cells_y-1) phi->val[i] = phi->bc_val[YMAX];
 		}
 	} return;
+
 } 
 		
 
@@ -193,7 +283,7 @@ int main(){
 	Field *u = allocate_field( N_Cells_x, N_Cells_y );
 	
 	
-	int i, l, m;
+	int i, l, m, t;
 	double res;
 	//Initializing all boundary condition values to zero
 	for(i=0;i<5;i++){
@@ -224,8 +314,10 @@ int main(){
 	set_bc(u);
 
 	//Calling jacobi solver
-	jacobi1(u, N_Cells_x, N_Cells_y, constant);
-	
+//	jacobi(u, N_Cells_x, N_Cells_y, constant);
+
+	//calling gauss seidel solver
+	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
 
 	fp = fopen("data", "w");
 	
