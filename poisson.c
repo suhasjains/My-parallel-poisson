@@ -66,7 +66,6 @@ struct _Constant{
 static Field *allocate_field(int,int);
 //void jacobi1(Field , int, int, Constant);
 
-
 void set_ghosts(Domain domain){
 	
 	int i, l, m;
@@ -164,11 +163,14 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
-	int i, l, m, t;
+	int i, l, m;
+	long int loop = 0;
 	int N_Cells_x = Nx;
 	int N_Cells_y = Ny;
 	int N = Nx * Ny;
 	int N_Cells = N;
+
+	double relax = 1.95;
 
 	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
 	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
@@ -217,7 +219,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 				e = temp->val[P] - phi->val[P];
 				if(e > res)	res = e; 
 		
-				phi->val[P] = temp->val[P];
+				phi->val[P] = (1.0 - relax) * phi->val[P] + relax * temp->val[P];
 
 			}
 		}
@@ -229,10 +231,10 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 			}
 		}
 		
-		t++;
+		loop++;
 	}
 
-	printf("Maximum residual is %e and number of iterations are %d\n", res, t);	
+	printf("Maximum residual is %e and number of iterations are %ld\n", res, loop);	
 	return;
 }
 
@@ -283,8 +285,7 @@ int main(){
 	Field *u = allocate_field( N_Cells_x, N_Cells_y );
 	
 	
-	int i, l, m, t;
-	double res;
+	int i, l, m;
 	//Initializing all boundary condition values to zero
 	for(i=0;i<5;i++){
 		u->bc_val[i] = 0.0;
