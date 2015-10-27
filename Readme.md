@@ -1,19 +1,19 @@
 #Poisson Equation Solver
 
-*Jacobi solver 
-*Gauss-Seidel with successive over relaxation
+* Jacobi solver 
+* Gauss-Seidel with successive over relaxation
 
 
 
 written in C with structures.
 
-*Structures are used to store the field variables and for easy specification of boundary conditions.
+* Structures are used to store the field variables and for easy specification of boundary conditions.
 
 
 Usage:
 
-*To compile use: g++ poisson.c
-*Type plot within an octave terminal to see the surface plot of the output.
+* To compile use: g++ poisson.c
+* Type plot within an octave terminal to see the surface plot of the output.
 
 
 
