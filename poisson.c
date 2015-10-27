@@ -90,7 +90,7 @@ void set_ghosts(Domain domain){
 void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
-	int i, l, m, t;
+	int i, l, m, t = 0;
 	int N_Cells_x = Nx;
 	int N_Cells_y = Ny;
 	int N = Nx * Ny;
@@ -315,10 +315,10 @@ int main(){
 	set_bc(u);
 
 	//Calling jacobi solver
-//	jacobi(u, N_Cells_x, N_Cells_y, constant);
+	jacobi(u, N_Cells_x, N_Cells_y, constant);
 
 	//calling gauss seidel solver
-	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
+//	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
 
 	fp = fopen("data", "w");
 	
