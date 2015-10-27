@@ -62,11 +62,9 @@ struct _Constant{
 
 //declaring functions
 void set_ghosts(Domain);
-void set_bc(Field);
+//void set_bc(Field);
 static Field *allocate_field(int,int);
-void jacobi(Field, int, int, Constant);
-void jacobi1(Field, int, int, Constant);
-void set_bc1(Field);
+//void jacobi1(Field , int, int, Constant);
 
 
 void set_ghosts(Domain domain){
@@ -88,6 +86,64 @@ void set_ghosts(Domain domain){
 			u->bc[i] = NONE;
 		}
 	}return;
+}
+void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
+
+	double res;	
+	int i, l, m, t;
+	int N_Cells_x = Nx;
+	int N_Cells_y = Ny;
+	int N = Nx * Ny;
+	int N_Cells = N;
+
+	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
+	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+	
+	//Starting the iteration loop
+	for(t=0;t<100000;t++){
+		
+		//Making the temp field zero after every iteration
+		for(i=0;i<N_Cells;i++){
+			temp->val[i] = 0.0;
+		}
+
+
+		double u_E, u_W, u_N, u_S, u_P;
+	
+		for(i=0;i<N_Cells;i++){
+			if(phi->bc[i] == NONE){ 
+				l=i%N_Cells_x;
+				m=(int) i/N_Cells_x;
+
+				u_E = phi->val[EAST];
+				u_W = phi->val[WEST];
+				u_N = phi->val[NORTH];
+				u_S = phi->val[SOUTH];
+				u_P = phi->val[P];
+			
+				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
+				else 	 		temp->val[P] += u_W;
+				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
+				else 			temp->val[P] += u_E;
+				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
+				else 			temp->val[P] += u_S;
+				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
+				else 			temp->val[P] += u_N;
+ 
+				temp->val[P] -= constant.f*pow(constant.h,2);
+				temp->val[P] = temp->val[P]/4.0;
+			}
+		}
+	
+		//Transferring values from temp to u
+		for(i=0;i<N_Cells;i++){
+			if(phi->bc[i] == NONE){
+				phi->val[i] = temp->val[i];
+			}
+		}
+	}return;
+
+
 }
 
 
@@ -168,9 +224,8 @@ int main(){
 	set_bc(u);
 
 	//Calling jacobi solver
-	res = jacobi(u, N_Cells_x, N_Cells_y, constant);
+	jacobi1(u, N_Cells_x, N_Cells_y, constant);
 	
-	set_bc1(u);
 
 	fp = fopen("data", "w");
 	
@@ -199,85 +254,4 @@ static Field *allocate_field(int N_x, int N_y){
 	return phi;
 }
 
-double jacobi(Field *phi, int Nx, int Ny, Constant constant){
-
-}
-
-void jacobi1(Field *phi, int Nx, int Ny, Constant constant){
-
-	double res;	
-	int i, l, m, t;
-	int N_Cells_x = Nx;
-	int N_Cells_y = Ny;
-	int N = Nx * Ny;
-	int N_Cells = N;
-
-	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
-	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
-	
-	//Starting the iteration loop
-	for(t=0;t<100000;t++){
-		
-		//Making the temp field zero after every iteration
-		for(i=0;i<N_Cells;i++){
-			temp->val[i] = 0.0;
-		}
-
-
-		double u_E, u_W, u_N, u_S, u_P;
-	
-		for(i=0;i<N_Cells;i++){
-			if(phi->bc[i] == NONE){ 
-				l=i%N_Cells_x;
-				m=(int) i/N_Cells_x;
-
-				u_E = phi->val[EAST];
-				u_W = phi->val[WEST];
-				u_N = phi->val[NORTH];
-				u_S = phi->val[SOUTH];
-				u_P = phi->val[P];
-			
-				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
-				else 	 		temp->val[P] += u_W;
-				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
-				else 			temp->val[P] += u_E;
-				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
-				else 			temp->val[P] += u_S;
-				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
-				else 			temp->val[P] += u_N;
  
-				temp->val[P] -= constant.f*pow(constant.h,2);
-				temp->val[P] = temp->val[P]/4.0;
-			}
-		}
-	
-		//Transferring values from temp to u
-		for(i=0;i<N_Cells;i++){
-			if(phi->bc[i] == NONE){
-				phi->val[i] = temp->val[i];
-			}
-		}
-	}return;
-
-
-}
- 
-
-void set_bc1(Field *phi){	
-	int i, l, m;
-	int N_Cells_x = phi->Nx;
-	int N_Cells_y = phi->Ny;
-	int N_Cells = N_Cells_x * N_Cells_y;
-	
-	for(i=0;i<N_Cells;i++){
-		l = i%N_Cells_x;
-		m = (int) i/N_Cells_x;
-		
-		if(phi->bc[i] == DIRICHLET){
-			if(l==0) 		phi->val[i] = phi->bc_val[XMIN];
-			else if(l==N_Cells_x-1)	phi->val[i] = phi->bc_val[XMAX];
-			else if(m==0)		phi->val[i] = phi->bc_val[YMIN];
-			else if(m==N_Cells_y-1) phi->val[i] = phi->bc_val[YMAX];
-		}
-	} return;
-}	
