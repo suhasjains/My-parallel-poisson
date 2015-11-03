@@ -18,6 +18,8 @@ Usage:
 
 Under progress:
 * Parallelization on distributed memory system using MPI.
+* Domain decomposition is done.
+
 
 Finally scalability of the parallelization is to be tested.
 
