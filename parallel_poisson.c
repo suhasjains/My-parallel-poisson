@@ -20,19 +20,31 @@ Finite volume discretized equation used is UE + UW + UN + US - 4*UP = f*h^2
 
 
 
-int proc_rank; 						//rank of the current process
-int proc_coord[2]; 					//coordinates of the process in the virtual grid
-int proc_top, proc_bottom, proc_left, proc_right;	//ranks of the neighbouring processes
-int n_Procs;						//total number of processes
-int P_grid[2];						//virtual grid dimensions
-MPI_Comm grid_comm;					//grid COMMUNICATOR
+int proc_rank; 							//rank of the current process
+int P_grid_rank;							//rank of the current proces in the virtual grid
+int P_grid_coord[2]; 						//coordinates of the process in the virtual grid
+int P_grid_top, P_grid_bottom, P_grid_left, P_grid_right;	//ranks of the neighbouring processes
+int n_Procs;							//total number of processes
+int P_grid[2];							//virtual grid dimensions
+int offset[2];							//offset for cell numbering for subdomains
+MPI_Comm grid_comm;						//grid COMMUNICATOR
+
 MPI_Status status;
+
+
 
 //defining enums and structures
 typedef enum{
 	NONE,
 	DIRICHLET,
+	BUFFER,
 } BC_type;
+
+
+typedef enum{
+	X_DIR,
+	Y_DIR,
+} Direction;
 
 
 typedef struct _Field Field;
@@ -75,7 +87,52 @@ struct _Constant{
 static Field *allocate_field(int,int);
 //void jacobi1(Field , int, int, Constant);
 
-void set_ghosts(Domain domain){
+void Setup_proc_grid(){
+
+	int wrap_around[2];
+	int reorder;
+	
+	//retrieve the number of processes
+	MPI_Comm_size(MPI_COMM_WORLD, &n_Procs);
+
+	//number of processes per row and column
+	P_grid[X_DIR] = 2;
+	P_grid[Y_DIR] = 2;
+
+	if(P_grid[X_DIR] * P_grid[Y_DIR] != n_Procs) 	printf("Error: Mismatch of number of processes and process grid");
+
+	//creating a virtual process grid topology
+	wrap_around[X_DIR] = 0;
+	wrap_around[Y_DIR] = 0;		//dont connect first and last processes
+	reorder = 1;			//reorder process ranks
+	
+	//creates a new communicator, grid_comm
+	MPI_Cart_create(MPI_COMM_WORLD, 2, P_grid, wrap_around, reorder, &grid_comm);
+
+	//retrieve new rank and cartesian coordinates of this process 
+	MPI_Comm_rank(grid_comm, &P_grid_rank); 
+	MPI_Cart_coords(grid_comm, P_grid_rank, 2, P_grid_coord);
+
+//	printf("I am %i and my location is %i, %i\n", P_grid_rank, P_grid_coord[0], P_grid_coord[1]);
+   
+	//calculate ranks of neighboring processes in the grid
+	MPI_Cart_shift(grid_comm, 1, 1, &P_grid_left, &P_grid_right);
+	MPI_Cart_shift(grid_comm, 0, 1, &P_grid_bottom, &P_grid_top);		
+
+//	if(P_grid_top == MPI_PROC_NULL)		printf("My top neighbor doesnt exist");
+	
+//	if(P_grid_bottom == MPI_PROC_NULL)	printf("My bottom neighbor doesnt exist"); 
+
+//	if(P_grid_right == MPI_PROC_NULL)	printf("My left neighbor doesnt exist"); 
+
+//	if(P_grid_left == MPI_PROC_NULL)	printf("My right neighbor doesnt exist"); 
+	
+
+//	printf("My rank is %d and my neighbors are top %d, bottom %d, right %d, left %d\n", P_grid_rank, P_grid_top, P_grid_bottom, P_grid_right, P_grid_left);
+
+}
+
+void set_ghost_buffer_flag(Domain domain){
 	
 	int i, l, m;
 
@@ -88,8 +145,10 @@ void set_ghosts(Domain domain){
 	for(i=0;i<N_Cells;i++){
 		l = i%N_Cells_x;	//gives the position of the CV along x
 		m = (int) i/N_Cells_x;	//gives the position of the CV along y
-		if(l==0 || l==N_Cells_x-1 || m==0 || m==N_Cells_y-1){
+		if((l==0&&P_grid_left==MPI_PROC_NULL) || (l==N_Cells_x-1&&P_grid_right==MPI_PROC_NULL) || (m==0&&P_grid_bottom==MPI_PROC_NULL) || (m==N_Cells_y-1&&P_grid_top==MPI_PROC_NULL)){
 			u->bc[i] = DIRICHLET;
+		}else if(l==0||l==N_Cells_x-1||m==0||m==N_Cells_y-1){
+			u->bc[i] = BUFFER;
 		}else{
 			u->bc[i] = NONE;
 		}
@@ -117,7 +176,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	//for(t=0;t<10000;t++){
 	while(res > pow(10,-10)){	
 	
-	//making res 0 so that any error greated than 0 can be equated to this
+	//making res 0 so that any error greater than 0 can be equated to this
 	res = 0.0;
 
 		//Making the temp field zero after every iteration
@@ -139,14 +198,14 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 				u_S = phi->val[SOUTH];
 				u_P = phi->val[P];
 			
-				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
-				else 	 		temp->val[P] += u_W;
-				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
-				else 			temp->val[P] += u_E;
-				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
-				else 			temp->val[P] += u_S;
-				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
-				else 			temp->val[P] += u_N;
+				if(l==1&&P_grid_left==MPI_PROC_NULL)		temp->val[P] += 2.0*u_W - u_P;
+				else 	 					temp->val[P] += u_W;
+				if(l==N_Cells_x-2&&P_grid_right==MPI_PROC_NULL) temp->val[P] += 2.0*u_E - u_P;
+				else 						temp->val[P] += u_E;
+				if(m==1&&P_grid_bottom==MPI_PROC_NULL)		temp->val[P] += 2.0*u_S - u_P;
+				else 						temp->val[P] += u_S;
+				if(m==N_Cells_y-2&&P_grid_top==MPI_PROC_NULL)	temp->val[P] += 2.0*u_N - u_P;
+				else 						temp->val[P] += u_N;
  
 				temp->val[P] -= constant.f*pow(constant.h,2);
 				temp->val[P] = temp->val[P]/4.0;
@@ -277,11 +336,11 @@ int main(int argc, char **argv){
 
 	MPI_Init(&argc, &argv);
 	
-	//Setting up virtual process grid topology - to be done immediately after MPI Initialization  
-	Setup_proc_grid(int argc, char **argv);	
-	
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
-
+	
+	//Setting up virtual process grid topology - to be done immediately after MPI Initialization  
+	Setup_proc_grid();	
+	
 
 	FILE *fp;
 
@@ -291,11 +350,27 @@ int main(int argc, char **argv){
 	//Defining a constant of type Constant
 	Constant constant;
 	
-	//Defining the number of control volumes which includes the ghost cells
-	int Nx,Ny,N;
-	int N_Cells_x = Nx = 100+2;
-	int N_Cells_y = Ny = 100+2;
-	int N_Cells = N = N_Cells_x * N_Cells_y;
+	//Defining the number of total interior control volumes
+	int N_int_x = 100;
+	int N_int_y = 100;
+
+	//With ghost cells
+	int N_Cells_x = N_int_x + 2;
+	int N_Cells_y = N_int_y + 2;
+	int N_Cells = N_Cells_x * N_Cells_y;
+
+	//Defining the number of interior local control volumes 
+	int N_int_local_x = N_int_x / P_grid[X_DIR]; 
+	int N_int_local_y = N_int_y / P_grid[Y_DIR];	
+
+	//With buffer cells
+	int N_local_x = N_int_local_x + 2;
+	int N_local_y = N_int_local_y + 2;
+	int N_local = N_local_x * N_local_y;	
+
+	//offset of cell numbering for the subdomain
+	offset[X_DIR] = P_grid_coord[X_DIR] * N_int_local_x;
+	offset[Y_DIR] = P_grid_coord[Y_DIR] * N_int_local_y;
 
 	char filename[10];
 
@@ -303,8 +378,8 @@ int main(int argc, char **argv){
 	constant.h = 0.1;
 	constant.f = 0.0;
 
-	//Allocating memory to the members of the Field u	
-	Field *u = allocate_field( N_Cells_x, N_Cells_y );
+	//Allocating local memory to the members of the Field u	
+	Field *u = allocate_field( N_local_x, N_local_y );
 	
 	
 	int i, l, m;
@@ -323,11 +398,12 @@ int main(int argc, char **argv){
 	domain.u = u;
 
 	//Assigning different flags to different boundary conditions
-	set_ghosts(domain);
+	set_ghost_buffer_flag(domain);
 
+//	set_buffer();	
 
-	//initialization
-	for(i=0;i<N_Cells;i++){
+	//initialization of local CVs in the process
+	for(i=0;i<N_local;i++){
 	//	l=i%N_Cells_x;
 	//	m=(int) i/N_Cells_x; 
 		u->val[i] = 0.0;
@@ -337,7 +413,7 @@ int main(int argc, char **argv){
 	set_bc(u);
 
 	//Calling jacobi solver
-	jacobi(u, N_Cells_x, N_Cells_y, constant);
+	jacobi(u, N_local_x, N_local_y, constant);
 
 	//calling gauss seidel solver
 //	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
@@ -346,9 +422,9 @@ int main(int argc, char **argv){
 
 	fp = fopen(filename, "w");
 	
-	for(i=0;i<N_Cells;i++){
-		l=i%N_Cells_x;
-		m=(int) i/N_Cells_x;
+	for(i=0;i<N_local;i++){
+		l=i%N_local_x;
+		m=(int) i/N_local_x;
 		
 		fprintf(fp,"%lf %lf %lf\n", l*(constant.h), m*(constant.h), u->val[i]);
 	}
