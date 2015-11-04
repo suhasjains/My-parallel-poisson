@@ -21,12 +21,13 @@ Finite volume discretized equation used is UE + UW + UN + US - 4*UP = f*h^2
 
 
 int proc_rank; 							//rank of the current process
-int P_grid_rank;							//rank of the current proces in the virtual grid
+int P_grid_rank;						//rank of the current proces in the virtual grid
 int P_grid_coord[2]; 						//coordinates of the process in the virtual grid
 int P_grid_top, P_grid_bottom, P_grid_left, P_grid_right;	//ranks of the neighbouring processes
 int n_Procs;							//total number of processes
 int P_grid[2];							//virtual grid dimensions
 int offset[2];							//offset for cell numbering for subdomains
+MPI_Datatype exchange_buffer_type[2];				//MPI_datatype for exchange of buffer cell data
 MPI_Comm grid_comm;						//grid COMMUNICATOR
 
 MPI_Status status;
@@ -155,6 +156,38 @@ void set_ghost_buffer_flag(Domain domain){
 	}return;
 }
 
+void setup_MPI_Datatype(int N_int_x, int N_int_y, int N_x){
+
+//	int N_int_x, N_int_y, N_x;
+
+	//Datatype for horizontal data exchange
+	MPI_Type_vector(N_int_y, 1, N_x, MPI_DOUBLE, &exchange_buffer_type[X_DIR]);
+	MPI_Type_commit(&exchange_buffer_type[X_DIR]);
+
+	//Datatype for vertical data exchange
+	MPI_Type_vector(N_int_x, 1, 1, MPI_DOUBLE, &exchange_buffer_type[Y_DIR]);
+	MPI_Type_commit(&exchange_buffer_type[Y_DIR]);
+}
+
+
+
+void Exchange_buffers(Field *phi, int N_local_x, int N_local_y){
+
+
+	//All traffic in direction "top"
+	 MPI_Sendrecv(&(phi->val[(N_local_y-2)*(N_local_x)+1]), 1, exchange_buffer_type[Y_DIR], P_grid_top, 0, &(phi->val[1]), 1, exchange_buffer_type[Y_DIR], P_grid_bottom, 0, grid_comm, &status); 
+
+	//All traffic in direction "bottom"
+	MPI_Sendrecv(&(phi->val[N_local_x+1]), 1, exchange_buffer_type[Y_DIR], P_grid_bottom, 0, &(phi->val[(N_local_y-1)*(N_local_x)+1]), 1, exchange_buffer_type[Y_DIR], P_grid_top, 0, grid_comm, &status);
+
+	//All traffic in direction "left"
+	MPI_Sendrecv(&(phi->val[N_local_x+1]), 1, exchange_buffer_type[X_DIR], P_grid_left, 0, &(phi->val[(2*N_local_x)-1]), 1, exchange_buffer_type[X_DIR], P_grid_right, 0, grid_comm, &status);
+
+	//All traffic in direction "right"
+	MPI_Sendrecv(&(phi->val[2*(N_local_x-1)]), 1, exchange_buffer_type[X_DIR], P_grid_right, 0, &(phi->val[N_local_x]), 1, exchange_buffer_type[X_DIR], P_grid_left, 0, grid_comm, &status);
+
+}  
+
 void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
@@ -174,8 +207,8 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	
 	//Starting the iteration loop
 	//for(t=0;t<10000;t++){
-	while(res > pow(10,-10)){	
-	
+//	while(res > pow(10,-10)){	
+	while(loop<45000){
 	//making res 0 so that any error greater than 0 can be equated to this
 	res = 0.0;
 
@@ -183,6 +216,8 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 		for(i=0;i<N_Cells;i++){
 			temp->val[i] = 0.0;
 		}
+
+		Exchange_buffers(phi, Nx, Ny);	
 
 
 		double u_E, u_W, u_N, u_S, u_P;
@@ -222,7 +257,13 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 				phi->val[i] = temp->val[i];
 			}
 		}
-		
+	
+//		Exchange_buffers(phi, Nx, Ny);	
+
+//		printf("Done with iteration %ld\n",loop);
+
+		//printf("Exchanging buffers after %ld iterations and residual is %e\n",loop, res);	
+	
 		loop++;
 	}
 
@@ -372,11 +413,13 @@ int main(int argc, char **argv){
 	offset[X_DIR] = P_grid_coord[X_DIR] * N_int_local_x;
 	offset[Y_DIR] = P_grid_coord[Y_DIR] * N_int_local_y;
 
+//	printf("offset is %d\n", offset[X_DIR]);
+
 	char filename[10];
 
 	//Defining the values of the members of constant	
 	constant.h = 0.1;
-	constant.f = 0.0;
+	constant.f = 1.0;
 
 	//Allocating local memory to the members of the Field u	
 	Field *u = allocate_field( N_local_x, N_local_y );
@@ -400,6 +443,9 @@ int main(int argc, char **argv){
 	//Assigning different flags to different boundary conditions
 	set_ghost_buffer_flag(domain);
 
+	//Setting up MPI datatypes for exchange of values in buffer in x and y direction.
+	setup_MPI_Datatype(N_int_local_x, N_int_local_y, N_local_x);
+
 //	set_buffer();	
 
 	//initialization of local CVs in the process
@@ -418,15 +464,36 @@ int main(int argc, char **argv){
 	//calling gauss seidel solver
 //	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
 
-	sprintf(filename, "data%i", proc_rank);
+//
+//	double v[N_local*n_Procs+1];
+
+//	MPI_Gather(&(u->val[0]), N_local, MPI_DOUBLE, v, N_local, MPI_DOUBLE, 0, grid_comm);   
+
+
+	sprintf(filename, "data%d", proc_rank);
 
 	fp = fopen(filename, "w");
 	
+//	fp = fopen("data", "w");
+	
+//	if(P_grid_rank==0){
+
+//		for(i=0;i<N_local*n_Procs;i++){
+//			l=i%N_Cells_x;
+//			m=(int) i/N_Cells_x; 
+
+//			w[i] = v[i];
+//			fprintf(fp,"%lf\n",v[i]);
+//		}	
+//	}
+	
 	for(i=0;i<N_local;i++){
-		l=i%N_local_x;
-		m=(int) i/N_local_x;
+		if(u->bc[i] == NONE){
+			l=i%N_local_x;
+			m=(int) i/N_local_x;
 		
-		fprintf(fp,"%lf %lf %lf\n", l*(constant.h), m*(constant.h), u->val[i]);
+			fprintf(fp,"%lf %lf %lf\n", (l+offset[X_DIR])*(constant.h), (m+offset[Y_DIR])*(constant.h), u->val[i]);
+		}
 	}
 
 	fclose(fp);	
