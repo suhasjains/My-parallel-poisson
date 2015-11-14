@@ -15,18 +15,19 @@ Written in C with structures.
 
 Usage:
 * To compile use: g++ poisson.c, mpic++ parallel_poisson.c
-* Type plot within an octave terminal to see the surface plot of the output.
+* Type plot_output within an octave terminal to see the surface plot of the output.
 * To run use: mpirun -n 
-* To run on a cluster use: qsub pp.sh
+* To run on a cluster/supercomputer use: qsub pp.sh
 
 Things done:
 * Parallelization on distributed memory system using MPI.
 * Domain decomposition is done.
 * Communication of buffer cells is working now.
-* Global residual added now
+* Global residual added now.
+* Speedup tested upto 16 processes.
 
 Things to do:
 * Parllelize Conjugate gradient solver.
 * Scalability test with large cores.
-
+* Non-blocking communication is to be tested.
 

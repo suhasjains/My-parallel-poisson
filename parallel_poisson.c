@@ -97,8 +97,8 @@ void Setup_proc_grid(){
 	MPI_Comm_size(MPI_COMM_WORLD, &n_Procs);
 
 	//number of processes per row and column
-	P_grid[X_DIR] = 2;
-	P_grid[Y_DIR] = 3;
+	P_grid[X_DIR] = 4;
+	P_grid[Y_DIR] = 4;
 
 	if(P_grid[X_DIR] * P_grid[Y_DIR] != n_Procs) 	printf("Error: Mismatch of number of processes and process grid");
 
@@ -208,7 +208,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	
 	//Starting the iteration loop
 	//for(t=0;t<10000;t++){
-	while(global_res > pow(10,-10)){	
+	while(global_res > pow(10,-4)){	
 //	while(loop<45000){
 	//making res 0 so that any error greater than 0 can be equated to this
 	res = 0.0;
@@ -263,7 +263,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 //		printf("Done with iteration %ld\n",loop);
 
-		//printf("Exchanging buffers after %ld iterations and residual is %e\n",loop, res);	
+	//	printf("%ld iterations done and residual is %lf\n",loop, res);	
 
 		if(loop%10==0)	MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
 	
@@ -395,8 +395,8 @@ int main(int argc, char **argv){
 	Constant constant;
 	
 	//Defining the number of total interior control volumes
-	int N_int_x = 100;
-	int N_int_y = 150;
+	int N_int_x = 1000;
+	int N_int_y = 1000;
 
 	//With ghost cells
 	int N_Cells_x = N_int_x + 2;
