@@ -1,10 +1,9 @@
-#include <stdio.h>
-#include <cmath>
-#include "mpi.h"
+#include "parallel_poisson.h"
+#include "parallel.h"
 
 
 /********************************************************
-Solving a poisson equation in 2D serially
+Solving a poisson equation in 2D parallely
 Finite volume discretized equation used is UE + UW + UN + US - 4*UP = f*h^2
 
  h is the spacing. 
@@ -12,127 +11,8 @@ Finite volume discretized equation used is UE + UW + UN + US - 4*UP = f*h^2
  Nx and Ny are the number of CVs in x and y direction respectively_
 ***********************************************************/
 
-#define EAST i+1
-#define WEST i-1
-#define NORTH i+Nx
-#define SOUTH i-Nx
-#define P i
 
-
-
-int proc_rank; 							//rank of the current process
-int P_grid_rank;						//rank of the current proces in the virtual grid
-int P_grid_coord[2]; 						//coordinates of the process in the virtual grid
-int P_grid_top, P_grid_bottom, P_grid_left, P_grid_right;	//ranks of the neighbouring processes
-int n_Procs;							//total number of processes
-int P_grid[2];							//virtual grid dimensions
-int offset[2];							//offset for cell numbering for subdomains
-MPI_Datatype exchange_buffer_type[2];				//MPI_datatype for exchange of buffer cell data
-MPI_Comm grid_comm;						//grid COMMUNICATOR
-
-MPI_Status status;
-
-
-
-//defining enums and structures
-typedef enum{
-	NONE,
-	DIRICHLET,
-	BUFFER,
-} BC_type;
-
-
-typedef enum{
-	X_DIR,
-	Y_DIR,
-} Direction;
-
-
-typedef struct _Field Field;
-struct _Field{
-	int Nx,Ny;
-	int N;
-	double *val;
-	BC_type *bc;
-	double bc_val[5];
-};	
-
-
-typedef enum{
-	INSIDE,
-	XMIN,
-	XMAX,
-	YMIN,
-	YMAX
-} PATCH_type;
-PATCH_type patch;
-
-
-typedef struct _Domain Domain;
-struct _Domain{
-	Field *u;
-};
-
-typedef struct _Constant Constant;
-struct _Constant{
-	double h;
-	double f;
-};
-
-
-
-
-//declaring functions
-//void set_ghosts(Domain);
-//void set_bc(Field);
-static Field *allocate_field(int,int);
-//void jacobi1(Field , int, int, Constant);
-
-void Setup_proc_grid(){
-
-	int wrap_around[2];
-	int reorder;
-	
-	//retrieve the number of processes
-	MPI_Comm_size(MPI_COMM_WORLD, &n_Procs);
-
-	//number of processes per row and column
-	P_grid[X_DIR] = 4;
-	P_grid[Y_DIR] = 4;
-
-	if(P_grid[X_DIR] * P_grid[Y_DIR] != n_Procs) 	printf("Error: Mismatch of number of processes and process grid");
-
-	//creating a virtual process grid topology
-	wrap_around[X_DIR] = 0;
-	wrap_around[Y_DIR] = 0;		//dont connect first and last processes
-	reorder = 1;			//reorder process ranks
-	
-	//creates a new communicator, grid_comm
-	MPI_Cart_create(MPI_COMM_WORLD, 2, P_grid, wrap_around, reorder, &grid_comm);
-
-	//retrieve new rank and cartesian coordinates of this process 
-	MPI_Comm_rank(grid_comm, &P_grid_rank); 
-	MPI_Cart_coords(grid_comm, P_grid_rank, 2, P_grid_coord);
-
-//	printf("I am %i and my location is %i, %i\n", P_grid_rank, P_grid_coord[0], P_grid_coord[1]);
-   
-	//calculate ranks of neighboring processes in the grid
-	MPI_Cart_shift(grid_comm, 1, 1, &P_grid_left, &P_grid_right);
-	MPI_Cart_shift(grid_comm, 0, 1, &P_grid_bottom, &P_grid_top);		
-
-//	if(P_grid_top == MPI_PROC_NULL)		printf("My top neighbor doesnt exist");
-	
-//	if(P_grid_bottom == MPI_PROC_NULL)	printf("My bottom neighbor doesnt exist"); 
-
-//	if(P_grid_right == MPI_PROC_NULL)	printf("My left neighbor doesnt exist"); 
-
-//	if(P_grid_left == MPI_PROC_NULL)	printf("My right neighbor doesnt exist"); 
-	
-
-//	printf("My rank is %d and my neighbors are top %d, bottom %d, right %d, left %d\n", P_grid_rank, P_grid_top, P_grid_bottom, P_grid_right, P_grid_left);
-
-}
-
+//Setting flags for ghost and buffer cells
 void set_ghost_buffer_flag(Domain domain){
 	
 	int i, l, m;
@@ -156,38 +36,7 @@ void set_ghost_buffer_flag(Domain domain){
 	}return;
 }
 
-void setup_MPI_Datatype(int N_int_x, int N_int_y, int N_x){
-
-//	int N_int_x, N_int_y, N_x;
-
-	//Datatype for horizontal data exchange
-	MPI_Type_vector(N_int_y, 1, N_x, MPI_DOUBLE, &exchange_buffer_type[X_DIR]);
-	MPI_Type_commit(&exchange_buffer_type[X_DIR]);
-
-	//Datatype for vertical data exchange
-	MPI_Type_vector(N_int_x, 1, 1, MPI_DOUBLE, &exchange_buffer_type[Y_DIR]);
-	MPI_Type_commit(&exchange_buffer_type[Y_DIR]);
-}
-
-
-
-void Exchange_buffers(Field *phi, int N_local_x, int N_local_y){
-
-
-	//All traffic in direction "top"
-	 MPI_Sendrecv(&(phi->val[(N_local_y-2)*(N_local_x)+1]), 1, exchange_buffer_type[Y_DIR], P_grid_top, 0, &(phi->val[1]), 1, exchange_buffer_type[Y_DIR], P_grid_bottom, 0, grid_comm, &status); 
-
-	//All traffic in direction "bottom"
-	MPI_Sendrecv(&(phi->val[N_local_x+1]), 1, exchange_buffer_type[Y_DIR], P_grid_bottom, 0, &(phi->val[(N_local_y-1)*(N_local_x)+1]), 1, exchange_buffer_type[Y_DIR], P_grid_top, 0, grid_comm, &status);
-
-	//All traffic in direction "left"
-	MPI_Sendrecv(&(phi->val[N_local_x+1]), 1, exchange_buffer_type[X_DIR], P_grid_left, 0, &(phi->val[(2*N_local_x)-1]), 1, exchange_buffer_type[X_DIR], P_grid_right, 0, grid_comm, &status);
-
-	//All traffic in direction "right"
-	MPI_Sendrecv(&(phi->val[2*(N_local_x-1)]), 1, exchange_buffer_type[X_DIR], P_grid_right, 0, &(phi->val[N_local_x]), 1, exchange_buffer_type[X_DIR], P_grid_left, 0, grid_comm, &status);
-
-}  
-
+//Jacobi solver
 void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
@@ -218,7 +67,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 			temp->val[i] = 0.0;
 		}
 
-		Exchange_buffers(phi, Nx, Ny);	
+		exchange_buffers(phi, Nx, Ny);	
 
 
 		double u_E, u_W, u_N, u_S, u_P;
@@ -274,6 +123,8 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	return;
 }
 
+
+//Gauss seidel solver
 void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
@@ -352,6 +203,8 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 	return;
 }
 
+
+//Setting boudary condition values to boundary cells
 void set_bc(Field *phi){
 
 	
@@ -383,7 +236,7 @@ int main(int argc, char **argv){
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 	
 	//Setting up virtual process grid topology - to be done immediately after MPI Initialization  
-	Setup_proc_grid();	
+	setup_proc_grid();	
 	
 
 	FILE *fp;
@@ -395,8 +248,8 @@ int main(int argc, char **argv){
 	Constant constant;
 	
 	//Defining the number of total interior control volumes
-	int N_int_x = 1000;
-	int N_int_y = 1000;
+	int N_int_x = 200;
+	int N_int_y = 200;
 
 	//With ghost cells
 	int N_Cells_x = N_int_x + 2;
@@ -447,7 +300,7 @@ int main(int argc, char **argv){
 	set_ghost_buffer_flag(domain);
 
 	//Setting up MPI datatypes for exchange of values in buffer in x and y direction.
-	setup_MPI_Datatype(N_int_local_x, N_int_local_y, N_local_x);
+	setup_MPI_datatypes(N_int_local_x, N_int_local_y, N_local_x);
 
 //	set_buffer();	
 
@@ -505,7 +358,7 @@ int main(int argc, char **argv){
 
 }
 
-
+//Allocating new field variable
 static Field *allocate_field(int N_x, int N_y){
 	
 	Field *phi;
