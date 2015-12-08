@@ -1,6 +1,4 @@
 #include "parallel_poisson.h"
-#include "parallel.h"
-
 
 /********************************************************
 Solving a poisson equation in 2D parallely

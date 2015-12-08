@@ -1,3 +1,5 @@
+#ifndef PARALLEL_H
+#define PARALLEL_H
 #include "mpi.h"
 
 //Parallelization variables
@@ -21,4 +23,5 @@ void setup_proc_grid();
 void setup_MPI_datatypes(int, int, int);
 
 //exchanges data between processes
-void exchange_buffers(Field, int, int);
+void exchange_buffers(Field *, int, int);
+#endif

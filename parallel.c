@@ -1,4 +1,4 @@
-#include "parallel_poisson.h"
+//#include "parallel_poisson.h"
 #include "parallel.h"
 
 //Creating a virtual cartesian topology
@@ -36,7 +36,7 @@ void setup_proc_grid() {
 
 
 //Packing data for communication across processes
-void setup_MPI_datatype(int N_int_x, int N_int_y, int N_x){
+void setup_MPI_datatypes(int N_int_x, int N_int_y, int N_x){
 
 //      int N_int_x, N_int_y, N_x;
 
