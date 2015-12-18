@@ -1,6 +1,6 @@
 #!/bin/bash
 #$ -cwd
 #$ -N poisson
-#$ -pe mpi 16
+#$ -pe mpi 4
 
-mpirun -n 16 a.out
+time mpirun -n 4 run >log

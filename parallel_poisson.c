@@ -228,8 +228,11 @@ void set_bc(Field *phi){
 
 int main(int argc, char **argv){
 
+	double t1,t2;
 
-	MPI_Init(&argc, &argv);
+        MPI_Init(&argc, &argv);
+
+        t1 = MPI_Wtime();
 	
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 	
@@ -351,6 +354,10 @@ int main(int argc, char **argv){
 	}
 
 	fclose(fp);	
+
+	t2 = MPI_Wtime();
+
+        printf("Total time taken is %g\n",t2-t1);
 
 	MPI_Finalize();
 
