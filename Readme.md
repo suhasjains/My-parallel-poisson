@@ -7,27 +7,26 @@ Serial Solvers:
 Parallel Solver:
 * Jacobi solver
 
-
-Written in C with structures.
-
-* Structures are used to store the field variables and for easy specification of boundary conditions.
-
+Code style:
+* Written in C with structures.
 
 Usage:
-* To compile use: g++ poisson.c, mpic++ parallel_poisson.c
-* Type plot_output within an octave terminal to see the surface plot of the output.
-* To run use: mpirun -n 
-* To run on a cluster/supercomputer use: qsub pp.sh
+* To compile serial solver: g++ poisson.c -o run, 
+* To compile parallel solver on local machine machine/cluster: mpic++ parallel_poisson.c -o run
+* To compile parallel solver on Cray supercomputer: CC -O3 parallel_poisson.c -o run
+* To run on local machine/cluster: qsub pp.sh
+* To run on Cray supercomputer: qsub submit.sh 
+* Type plot_output within an octave terminal to see the surface plot of the output or run the python script plot_output.py
 
-Things done:
+Change log:
 * Parallelization on distributed memory system using MPI.
 * Domain decomposition is done.
 * Communication of buffer cells is working now.
 * Global residual added now.
-* Speedup tested upto 16 processes.
+* Speedup tested upto 16 processes on local machine.
+* Speedup tested upto 720 processes on Cray XC40.
 
 Things to do:
 * Parllelize Conjugate gradient solver.
-* Scalability test with large cores.
 * Non-blocking communication is to be tested.
 
