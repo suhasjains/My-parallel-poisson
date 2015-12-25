@@ -1,6 +1,8 @@
-#ifndef PARALLEL_H
-#define PARALLEL_H
+#ifndef _PARALLEL_H
+#define _PARALLEL_H
 #include "mpi.h"
+
+namespace poisson {
 
 //Parallelization variables
 int proc_rank;                                                      //rank of the current process
@@ -24,4 +26,10 @@ void setup_MPI_datatypes(int, int, int);
 
 //exchanges data between processes
 void exchange_buffers(Field *, int, int);
+
+
+
+
+
+}
 #endif

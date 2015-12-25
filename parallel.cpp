@@ -1,5 +1,6 @@
 //#include "parallel_poisson.h"
 #include "parallel.h"
+namespace poisson {
 
 //Creating a virtual cartesian topology
 void setup_proc_grid() {
@@ -11,8 +12,8 @@ void setup_proc_grid() {
         MPI_Comm_size(MPI_COMM_WORLD, &n_Procs);
 
         //number of processes per row and column
-        P_grid[X_DIR] = 2;
-        P_grid[Y_DIR] = 2;
+        P_grid[X_DIR] = 1;
+        P_grid[Y_DIR] = 1;
 
         if(P_grid[X_DIR] * P_grid[Y_DIR] != n_Procs)    printf("Error: Mismatch of number of processes and process grid");
 
@@ -68,3 +69,6 @@ void exchange_buffers(Field *phi, int N_local_x, int N_local_y){
 
 }
 
+
+
+}

@@ -1,4 +1,5 @@
 #include "parallel_poisson.h"
+namespace poisson {
 
 /********************************************************
 Solving a poisson equation in 2D parallely
@@ -48,7 +49,9 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	long int loop = 0;
 
 	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
-	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+	Field TEMP( N_Cells_x, N_Cells_y); 
+	Field *temp;
+	temp = &TEMP;
 
 	//making res 1 so that it enters into the loop	
 	res = 1.0;
@@ -118,6 +121,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	}
 
 	printf("Maximum residual is %e and number of iterations are %ld and I am process %d \n", res, loop, proc_rank);	
+	
 	return;
 }
 
@@ -136,7 +140,10 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 	double relax = 1.95;
 
 	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
-	Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+	//Field *temp = allocate_field( N_Cells_x, N_Cells_y );
+	Field TEMP( N_Cells_x, N_Cells_y); 
+	Field *temp;
+	temp = &TEMP;
 
 	//making res 1 so that it enters into the loop	
 	res = 1.0;
@@ -224,7 +231,13 @@ void set_bc(Field *phi){
 	} return;
 
 } 
-		
+
+}
+
+
+
+using namespace poisson;
+
 
 int main(int argc, char **argv){
 
@@ -249,8 +262,8 @@ int main(int argc, char **argv){
 	Constant constant;
 	
 	//Defining the number of total interior control volumes
-	int N_int_x = 200;
-	int N_int_y = 200;
+	int N_int_x = 100;
+	int N_int_y = 100;
 
 	//With ghost cells
 	int N_Cells_x = N_int_x + 2;
@@ -279,8 +292,13 @@ int main(int argc, char **argv){
 	constant.f = 1.0;
 
 	//Allocating local memory to the members of the Field u	
-	Field *u = allocate_field( N_local_x, N_local_y );
+	//Field *u = allocate_field( N_local_x, N_local_y );
+	Field U( N_local_x, N_local_y); 
+	Field *u;
+	u = &U;
 	
+	Field V = U;
+	Field W(U);
 	
 	int i, l, m;
 	//Initializing all boundary condition values to zero
@@ -363,17 +381,5 @@ int main(int argc, char **argv){
 
 }
 
-//Allocating new field variable
-static Field *allocate_field(int N_x, int N_y){
-	
-	Field *phi;
-	phi = new Field;
-	phi->Nx = N_x;
-	phi->Ny = N_y;
-	phi->N = N_x*N_y;
-	phi->val = new double [phi->N];
-	phi->bc = new BC_type [phi->N];
-	return phi;
-}
 
  

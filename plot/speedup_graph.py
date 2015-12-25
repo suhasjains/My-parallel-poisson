@@ -1,7 +1,7 @@
 from __future__ import division
 import matplotlib.pyplot as plt
 import numpy as np
-plt.rcParams['font.size'] = 18
+plt.rcParams['font.size'] = 12
 
 
 time = np.array([ 287.373, 96.2159, 49.6662, 9.99871 ]);

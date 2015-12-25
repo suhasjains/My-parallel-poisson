@@ -1,13 +1,13 @@
-#ifndef PARALLEL_POISSON_H
+#ifndef _PARALLEL_POISSON_H
 #define _PARALLEL_POISSON_H
 #include <stdio.h>
 #include <cmath>
 #include "variables.h"
-#include "parallel.c"
-
+#include "parallel.cpp"
+namespace poisson {
 
 //defines a new field variable
-static Field *allocate_field(int,int);
+//static Field *allocate_field(int,int);
 
 
 //sets flags for ghost and buffer cells
@@ -23,5 +23,5 @@ void gauss_seidel(Field, int, int, Constant);
 void set_bc(Field);
 
 
-
+}
 #endif

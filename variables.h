@@ -1,5 +1,8 @@
 #ifndef VARIABLES_H
 #define VARIABLES_H
+#include<string.h>	//for memcpy
+
+namespace poisson {
 
 //Directions
 #define EAST i+1
@@ -23,16 +26,54 @@ typedef enum{
 } Direction;
 
 
-//Field structure
-typedef struct _Field Field;
-struct _Field{
-        int Nx,Ny;
-        int N;
-        double *val;
-        BC_type *bc;
-        double bc_val[5];
+//Field class
+class Field {
+
+	//Members
+	public:
+        	int Nx,Ny;
+        	int N;
+        	double *val;
+        	BC_type *bc;
+        	double bc_val[5];
+	
+	//Constructor
+	Field(int N_x, int N_y);
+
+	//Copy constructor
+	Field(const Field &obj);
+		
+	//Destructor
+	~Field();
 };
 
+
+//Constructor for Field class
+Field :: Field( int N_x, int N_y ) : Nx(N_x), Ny(N_y) {
+
+        N = N_x*N_y;
+        val = new double [N];
+        bc = new BC_type [N];
+}
+
+//Copy constructor for Field class
+Field :: Field(const Field &obj) {
+
+	Nx = obj.Nx;
+	Ny = obj.Ny;
+	N = obj.N;
+        val = new double [N];
+	memcpy(val,obj.val,sizeof(double)*N);
+        bc = new BC_type [N];
+	memcpy(bc,obj.bc,sizeof(double)*N);
+}
+
+//Destructor for Field class
+Field :: ~Field() {
+
+        delete val;
+        delete  bc;
+}
 
 //Patch
 typedef enum{
@@ -45,18 +86,20 @@ typedef enum{
 PATCH_type patch;
 
 //Domain structure 
-typedef struct _Domain Domain;
-struct _Domain{
-        Field *u;
+class Domain{
+
+	public:
+        	Field *u;
 };
 
 
 //Constants
-typedef struct _Constant Constant;
-struct _Constant{
-        double h;
-        double f;
+class Constant{
+
+	public:
+        	double h;
+        	double f;
 };
 
-
+}
 #endif
