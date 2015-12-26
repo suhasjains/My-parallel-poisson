@@ -11,6 +11,7 @@ Finite volume discretized equation used is UE + UW + UN + US - 4*UP = f*h^2
 ***********************************************************/
 
 
+
 //Setting flags for ghost and buffer cells
 void set_ghost_buffer_flag(Domain domain){
 	
@@ -48,10 +49,10 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 	long int loop = 0;
 
-	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
-	Field TEMP( N_Cells_x, N_Cells_y); 
+	//Defining a new temporary field (temp is not part of the domain)
+	Field tempo( N_Cells_x, N_Cells_y); 
 	Field *temp;
-	temp = &TEMP;
+	temp = &tempo;
 
 	//making res 1 so that it enters into the loop	
 	res = 1.0;
@@ -64,9 +65,7 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 	res = 0.0;
 
 		//Making the temp field zero after every iteration
-		for(i=0;i<N_Cells;i++){
-			temp->val[i] = 0.0;
-		}
+		temp->set_field_value(0.0);
 
 		exchange_buffers(phi, Nx, Ny);	
 
@@ -139,11 +138,10 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
 	double relax = 1.95;
 
-	//Allocating memory to the members of the temporary Field temp (temp is not part of the domain)
-	//Field *temp = allocate_field( N_Cells_x, N_Cells_y );
-	Field TEMP( N_Cells_x, N_Cells_y); 
+	//Defining a new temporary field (temp is not part of the domain)
+	Field tempo( N_Cells_x, N_Cells_y); 
 	Field *temp;
-	temp = &TEMP;
+	temp = &tempo;
 
 	//making res 1 so that it enters into the loop	
 	res = 1.0;
@@ -156,10 +154,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 	res = 0.0;
 
 		//Making the temp field zero after every iteration
-		for(i=0;i<N_Cells;i++){
-			temp->val[i] = 0.0;
-		}
-
+		temp->set_field_value(0.0);
 
 		double u_E, u_W, u_N, u_S, u_P;
 	
@@ -209,7 +204,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 }
 
 
-//Setting boudary condition values to boundary cells
+//Setting boundary condition values to boundary cells
 void set_bc(Field *phi){
 
 	
@@ -232,6 +227,37 @@ void set_bc(Field *phi){
 
 } 
 
+
+void write_output(Domain domain, int proc_rank) {
+
+	int i,l,m;
+	int N_local = domain.u->N;
+	int N_local_x = domain.u->Nx;
+	FILE *fp;
+
+	char filename[10];
+
+
+	sprintf(filename, "data%d", proc_rank);
+	
+
+	fp = fopen(filename, "w");
+	
+	
+	for(i=0;i<N_local;i++){
+		if(domain.u->bc[i] == NONE){
+			l=i%N_local_x;
+			m=(int) i/N_local_x;
+		
+			fprintf(fp,"%lf %lf %lf\n", (l+offset[X_DIR])*(domain.constant->h), (m+offset[Y_DIR])*(domain.constant->h), domain.u->val[i]);
+		}
+	}
+
+	fclose(fp);	
+
+
+}
+
 }
 
 
@@ -253,7 +279,6 @@ int main(int argc, char **argv){
 	setup_proc_grid();	
 	
 
-	FILE *fp;
 
 	//Defining a domain of type Domain
 	Domain domain;
@@ -285,35 +310,32 @@ int main(int argc, char **argv){
 
 //	printf("offset is %d\n", offset[X_DIR]);
 
-	char filename[10];
 
 	//Defining the values of the members of constant	
 	constant.h = 0.1;
 	constant.f = 1.0;
 
-	//Allocating local memory to the members of the Field u	
-	//Field *u = allocate_field( N_local_x, N_local_y );
-	Field U( N_local_x, N_local_y); 
-	Field *u;
-	u = &U;
+	//Defining a new scalar field	
+	Field u( N_local_x, N_local_y); 
+//	Field *u;
+//	u = &U;
 	
-	Field V = U;
-	Field W(U);
 	
 	int i, l, m;
 	//Initializing all boundary condition values to zero
 	for(i=0;i<5;i++){
-		u->bc_val[i] = 0.0;
+		u.bc_val[i] = 0.0;
 	}
 	
 	//Setting up boundary condition values
-	u->bc_val[XMAX] = 1.0;
-	u->bc_val[XMIN] = 1.0;
-	u->bc_val[YMAX] = 1.0;
-	u->bc_val[YMIN] = 1.0;
+	u.bc_val[XMAX] = 1.0;
+	u.bc_val[XMIN] = 1.0;
+	u.bc_val[YMAX] = 1.0;
+	u.bc_val[YMIN] = 1.0;
 
 	//Equating the address of the field u to the member u of the domain
-	domain.u = u;
+	domain.u = &u;
+	domain.constant = &constant;
 
 	//Assigning different flags to different boundary conditions
 	set_ghost_buffer_flag(domain);
@@ -324,54 +346,20 @@ int main(int argc, char **argv){
 //	set_buffer();	
 
 	//initialization of local CVs in the process
-	for(i=0;i<N_local;i++){
-	//	l=i%N_Cells_x;
-	//	m=(int) i/N_Cells_x; 
-		u->val[i] = 0.0;
-	}
+	u.set_field_value(0.0);
 
 	//Assigning the ghost cells the respective boundary face values
-	set_bc(u);
+	set_bc(&u);
 
 	//Calling jacobi solver
-	jacobi(u, N_local_x, N_local_y, constant);
+	jacobi(&u, N_local_x, N_local_y, constant);
 
 	//calling gauss seidel solver
-//	gauss_seidel(u, N_Cells_x, N_Cells_y, constant);
-
-//
-//	double v[N_local*n_Procs+1];
-
-//	MPI_Gather(&(u->val[0]), N_local, MPI_DOUBLE, v, N_local, MPI_DOUBLE, 0, grid_comm);   
+//	gauss_seidel(&u, N_Cells_x, N_Cells_y, constant);
 
 
-	sprintf(filename, "data%d", proc_rank);
+	write_output(domain,proc_rank);
 
-	fp = fopen(filename, "w");
-	
-//	fp = fopen("data", "w");
-	
-//	if(P_grid_rank==0){
-
-//		for(i=0;i<N_local*n_Procs;i++){
-//			l=i%N_Cells_x;
-//			m=(int) i/N_Cells_x; 
-
-//			w[i] = v[i];
-//			fprintf(fp,"%lf\n",v[i]);
-//		}	
-//	}
-	
-	for(i=0;i<N_local;i++){
-		if(u->bc[i] == NONE){
-			l=i%N_local_x;
-			m=(int) i/N_local_x;
-		
-			fprintf(fp,"%lf %lf %lf\n", (l+offset[X_DIR])*(constant.h), (m+offset[Y_DIR])*(constant.h), u->val[i]);
-		}
-	}
-
-	fclose(fp);	
 
 	t2 = MPI_Wtime();
 
