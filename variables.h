@@ -49,6 +49,7 @@ class Field {
 
 	
 	//Constructors
+	//allocates memory to the field variables equal to the number of cells in the domain
 	Field( int N_x, int N_y ) : Nx(N_x), Ny(N_y) {
 
         	N = N_x*N_y;
@@ -125,6 +126,7 @@ class Domain{
 		Constant *constant;
 	
 	//Constructors
+	//adds the reference to the field and constant to the domain
 	Domain( Field* field, Constant* con) : u(field), constant(con) {
 
 	}

@@ -41,41 +41,33 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 
 	double res, e;	
 	int i, l, m;
-	int N_Cells_x = Nx;
-	int N_Cells_y = Ny;
 	int N = Nx * Ny;
-	int N_Cells = N;
 	double global_res = 1.0;	
 
 	long int loop = 0;
 
 	//Defining a new temporary field (temp is not part of the domain)
-	Field tempo( N_Cells_x, N_Cells_y); 
-	Field *temp;
-	temp = &tempo;
+	Field temp( Nx, Ny); 
 
-	//making res 1 so that it enters into the loop	
-	res = 1.0;
-	
 	//Starting the iteration loop
-	//for(t=0;t<10000;t++){
-	while(global_res > pow(10,-4)){	
-//	while(loop<45000){
-	//making res 0 so that any error greater than 0 can be equated to this
-	res = 0.0;
+	while(global_res > pow(10,-7)){	
+	
+		//making res 0 so that any error greater than 0 can be equated to this
+		res = 0.0;
 
 		//Making the temp field zero after every iteration
-		temp->set_field_value(0.0);
+		temp.set_field_value(0.0);
 
+		//exchanges buffer cells
 		exchange_buffers(phi, Nx, Ny);	
 
 
 		double u_E, u_W, u_N, u_S, u_P;
 	
-		for(i=0;i<N_Cells;i++){
+		for(i=0;i<N;i++){
 			if(phi->bc[i] == NONE){ 
-				l=i%N_Cells_x;
-				m=(int) i/N_Cells_x;
+				l=i%Nx;
+				m=(int) i/Nx;
 
 				u_E = phi->val[EAST];
 				u_W = phi->val[WEST];
@@ -83,36 +75,34 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 				u_S = phi->val[SOUTH];
 				u_P = phi->val[P];
 			
-				if(l==1&&P_grid_left==MPI_PROC_NULL)		temp->val[P] += 2.0*u_W - u_P;
-				else 	 					temp->val[P] += u_W;
-				if(l==N_Cells_x-2&&P_grid_right==MPI_PROC_NULL) temp->val[P] += 2.0*u_E - u_P;
-				else 						temp->val[P] += u_E;
-				if(m==1&&P_grid_bottom==MPI_PROC_NULL)		temp->val[P] += 2.0*u_S - u_P;
-				else 						temp->val[P] += u_S;
-				if(m==N_Cells_y-2&&P_grid_top==MPI_PROC_NULL)	temp->val[P] += 2.0*u_N - u_P;
-				else 						temp->val[P] += u_N;
+				if(l==1&&P_grid_left==MPI_PROC_NULL)		temp.val[P] += 2.0*u_W - u_P;
+				else 	 					temp.val[P] += u_W;
+				if(l==Nx-2&&P_grid_right==MPI_PROC_NULL) 	temp.val[P] += 2.0*u_E - u_P;
+				else 						temp.val[P] += u_E;
+				if(m==1&&P_grid_bottom==MPI_PROC_NULL)		temp.val[P] += 2.0*u_S - u_P;
+				else 						temp.val[P] += u_S;
+				if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)		temp.val[P] += 2.0*u_N - u_P;
+				else 						temp.val[P] += u_N;
  
-				temp->val[P] -= constant.f*pow(constant.h,2);
-				temp->val[P] = temp->val[P]/4.0;
+				temp.val[P] -= constant.f*pow(constant.h,2);
+				temp.val[P] = temp.val[P]/4.0;
+
 	
-				e = temp->val[P] - phi->val[P];
-				if(e > res)	res = e; 
+				e = temp.val[P] - phi->val[P];
+				if(e > res)	res = e;
+
+	 
 
 			}
 		}
 	
 		//Transferring values from temp to u
-		for(i=0;i<N_Cells;i++){
+		for(i=0;i<N;i++){
 			if(phi->bc[i] == NONE){
-				phi->val[i] = temp->val[i];
+				phi->val[i] = temp.val[i];
 			}
 		}
-	
-//		Exchange_buffers(phi, Nx, Ny);	
 
-//		printf("Done with iteration %ld\n",loop);
-
-	//	printf("%ld iterations done and residual is %lf\n",loop, res);	
 
 		if(loop%10==0)	MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
 	
@@ -128,80 +118,128 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 //Gauss seidel solver
 void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
-	double res, e;	
-	int i, l, m;
-	long int loop = 0;
-	int N_Cells_x = Nx;
-	int N_Cells_y = Ny;
-	int N = Nx * Ny;
-	int N_Cells = N;
 
-	double relax = 1.95;
 
-	//Defining a new temporary field (temp is not part of the domain)
-	Field tempo( N_Cells_x, N_Cells_y); 
-	Field *temp;
-	temp = &tempo;
-
-	//making res 1 so that it enters into the loop	
-	res = 1.0;
+	double res, e;
+        int i, l, m;
+        int N = Nx * Ny;
+        double global_res = 1.0;
 	
-	//Starting the iteration loop
-	//for(t=0;t<10000;t++){
-	while(res > pow(10,-10)){	
-	
-	//making res 0 so that any error greated than 0 can be equated to this
-	res = 0.0;
+	double relax = 1.3;
+	double prev_val, curr_val;
 
-		//Making the temp field zero after every iteration
-		temp->set_field_value(0.0);
+        long int loop = 0;
 
-		double u_E, u_W, u_N, u_S, u_P;
-	
-		for(i=0;i<N_Cells;i++){
-			if(phi->bc[i] == NONE){ 
-				l=i%N_Cells_x;
-				m=(int) i/N_Cells_x;
+        //Defining a new temporary field (temp is not part of the domain)
+        Field temp( Nx, Ny);
 
-				u_E = phi->val[EAST];
-				u_W = phi->val[WEST];
-				u_N = phi->val[NORTH];
-				u_S = phi->val[SOUTH];
-				u_P = phi->val[P];
-			
-				if(l==1)		temp->val[P] += 2.0*u_W - u_P;
-				else 	 		temp->val[P] += u_W;
-				if(l==N_Cells_x-2) 	temp->val[P] += 2.0*u_E - u_P;
-				else 			temp->val[P] += u_E;
-				if(m==1)		temp->val[P] += 2.0*u_S - u_P;
-				else 			temp->val[P] += u_S;
-				if(m==N_Cells_y-2)	temp->val[P] += 2.0*u_N - u_P;
-				else 			temp->val[P] += u_N;
- 
-				temp->val[P] -= constant.f*pow(constant.h,2);
-				temp->val[P] = temp->val[P]/4.0;
-	
-				e = temp->val[P] - phi->val[P];
-				if(e > res)	res = e; 
-		
-				phi->val[P] = (1.0 - relax) * phi->val[P] + relax * temp->val[P];
+        //Starting the iteration loop
+        while(global_res > pow(10,-12)){
 
-			}
-		}
-	
-		//Transferring values from temp to u
-		for(i=0;i<N_Cells;i++){
-			if(phi->bc[i] == NONE){
-				phi->val[i] = temp->val[i];
-			}
-		}
-		
-		loop++;
-	}
+                //making res 0 so that any error greater than 0 can be equated to this
+                res = 0.0;
 
-	printf("Maximum residual is %e and number of iterations are %ld\n", res, loop);	
-	return;
+                //Making the temp field zero after every iteration
+                temp.set_field_value(0.0);
+
+                //exchanges buffer cells
+                exchange_buffers(phi, Nx, Ny);
+
+
+                double u_E, u_W, u_N, u_S, u_P;
+
+                for(i=0;i<N;i++){
+                        if(phi->bc[i] == NONE && i%2 == 0 ){
+                                l=i%Nx;
+                                m=(int) i/Nx;
+
+                                u_E = phi->val[EAST];
+                                u_W = phi->val[WEST];
+                                u_N = phi->val[NORTH];
+                                u_S = phi->val[SOUTH];
+                                u_P = phi->val[P];
+
+                                if(l==1&&P_grid_left==MPI_PROC_NULL)            temp.val[P] += 2.0*u_W - u_P;
+                                else                                            temp.val[P] += u_W;
+                                if(l==Nx-2&&P_grid_right==MPI_PROC_NULL)        temp.val[P] += 2.0*u_E - u_P;
+                                else                                            temp.val[P] += u_E;
+                                if(m==1&&P_grid_bottom==MPI_PROC_NULL)          temp.val[P] += 2.0*u_S - u_P;
+                                else                                            temp.val[P] += u_S;
+                                if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)          temp.val[P] += 2.0*u_N - u_P;
+				else                                            temp.val[P] += u_N;
+
+                                temp.val[P] -= constant.f*pow(constant.h,2);
+                                temp.val[P] = temp.val[P]/4.0;
+
+				prev_val = phi->val[P];
+				
+				//SOR
+				phi->val[P] = (1.0 - relax) * phi->val[P] + relax * temp.val[P];
+
+				curr_val = phi->val[P];
+
+    	                   	e = curr_val - prev_val;
+
+                                if(e > res)     res = e;
+
+                        }
+                }
+
+                //exchanges buffer cells
+                exchange_buffers(phi, Nx, Ny);
+
+                for(i=0;i<N;i++){
+                        if(phi->bc[i] == NONE && i%2 != 0 ){
+                                l=i%Nx;
+                                m=(int) i/Nx;
+
+                                u_E = phi->val[EAST];
+                                u_W = phi->val[WEST];
+                                u_N = phi->val[NORTH];
+                                u_S = phi->val[SOUTH];
+                                u_P = phi->val[P];
+
+                                if(l==1&&P_grid_left==MPI_PROC_NULL)            temp.val[P] += 2.0*u_W - u_P;
+                                else                                            temp.val[P] += u_W;
+                                if(l==Nx-2&&P_grid_right==MPI_PROC_NULL)        temp.val[P] += 2.0*u_E - u_P;
+                                else                                            temp.val[P] += u_E;
+                                if(m==1&&P_grid_bottom==MPI_PROC_NULL)          temp.val[P] += 2.0*u_S - u_P;
+                                else                                            temp.val[P] += u_S;
+                                if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)          temp.val[P] += 2.0*u_N - u_P;
+				else                                            temp.val[P] += u_N;
+
+                                temp.val[P] -= constant.f*pow(constant.h,2);
+                                temp.val[P] = temp.val[P]/4.0;
+
+				prev_val = phi->val[P];
+				
+				//SOR
+				phi->val[P] = (1.0 - relax) * phi->val[P] + relax * temp.val[P];
+
+				curr_val = phi->val[P];
+
+    	                   	e = curr_val - prev_val;
+
+                                if(e > res)     res = e;
+
+                        }
+                }
+				printf("My residual = %g and I am %d\n",res,proc_rank); 
+
+                //if(loop%10==0)  MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
+		MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
+                loop++;
+        }
+
+        printf("Maximum residual is %e and number of iterations are %ld and I am process %d \n", res, loop, proc_rank);
+
+        return;
 }
+
+
+//Steepest gradient solver
+
+//Conjugate gradient solver
 
 
 //Setting boundary condition values to boundary cells
@@ -236,10 +274,12 @@ using namespace poisson;
 
 int main(int argc, char **argv){
 
-	double t1,t2;
 
         MPI_Init(&argc, &argv);
 
+
+	double t1,t2;
+	int i, l, m;
         t1 = MPI_Wtime();
 	
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
@@ -247,12 +287,10 @@ int main(int argc, char **argv){
 	//Setting up virtual process grid topology - to be done immediately after MPI Initialization  
 	setup_proc_grid();	
 	
-	//Defining a constant of type Constant
-	Constant constant;
 	
 	//Defining the number of total interior control volumes
-	int N_int_x = 100;
-	int N_int_y = 100;
+	int N_int_x = 20;
+	int N_int_y = 20;
 
 	//With ghost cells
 	int N_Cells_x = N_int_x + 2;
@@ -268,10 +306,12 @@ int main(int argc, char **argv){
 	int N_local_y = N_int_local_y + 2;
 	int N_local = N_local_x * N_local_y;	
 
+	//Defining a constant of type Constant
+	Constant constant;
 
 	//Defining the values of the members of constant	
-	constant.h = 0.1;
-	constant.f = 1.0;
+	constant.h = 0.05;
+	constant.f = 0.0;
 
 	//Defining a new scalar field	
 	Field u( N_local_x, N_local_y); 
@@ -280,11 +320,6 @@ int main(int argc, char **argv){
 	Domain domain(&u,&constant);
 	
 	
-	//Equating the address of the field u to the member u of the domain
-	//domain.u = &u;
-	//domain.constant = &constant;
-	
-	int i, l, m;
 	//Initializing all boundary condition values to zero
 	for(i=0;i<5;i++){
 		u.bc_val[i] = 0.0;
@@ -292,9 +327,9 @@ int main(int argc, char **argv){
 	
 	//Setting up boundary condition values
 	u.bc_val[XMAX] = 1.0;
-	u.bc_val[XMIN] = 1.0;
-	u.bc_val[YMAX] = 1.0;
-	u.bc_val[YMIN] = 1.0;
+	u.bc_val[XMIN] = 2.0;
+	u.bc_val[YMAX] = 3.0;
+	u.bc_val[YMIN] = 4.0;
 
 
 	//Assigning different flags to different boundary conditions
@@ -303,8 +338,6 @@ int main(int argc, char **argv){
 	//Setting up MPI datatypes for exchange of values in buffer in x and y direction.
 	setup_MPI_datatypes(N_int_local_x, N_int_local_y, N_local_x);
 
-//	set_buffer();	
-
 	//initialization of local CVs in the process
 	u.set_field_value(0.0);
 
@@ -312,9 +345,10 @@ int main(int argc, char **argv){
 	set_bc(&u);
 
 	//Calling jacobi solver
-	jacobi(&u, N_local_x, N_local_y, constant);
+	//jacobi(&u, N_local_x, N_local_y, constant);
+	gauss_seidel(&u, N_local_x, N_local_y, constant);
 
-
+	//writes output to the file
 	write_output(domain,proc_rank);
 
 

@@ -6,9 +6,10 @@ Serial Solvers:
 
 Parallel Solver:
 * Jacobi solver
+* Red-Black Gauss-Seidel with successive over relaxation
 
 Code style:
-* Written in C with structures.
+* Written using OOPS in C++.
 
 Usage:
 * To compile serial solver: g++ poisson.c -o run, 
@@ -25,6 +26,7 @@ Change log:
 * Global residual added now.
 * Speedup tested upto 16 processes on local machine.
 * Speedup tested upto 720 processes on Cray XC40.
+* Red-Black Gauss-Seidel solver added.
 
 Things to do:
 * Parllelize Conjugate gradient solver.
