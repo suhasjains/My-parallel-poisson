@@ -118,8 +118,6 @@ void jacobi(Field *phi, int Nx, int Ny, Constant constant){
 //Gauss seidel solver
 void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
-
-
 	double res, e;
         int i, l, m;
         int N = Nx * Ny;
