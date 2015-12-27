@@ -3,12 +3,9 @@
 #include <stdio.h>
 #include <cmath>
 #include "variables.h"
+#include "output.cpp"
 #include "parallel.cpp"
 namespace poisson {
-
-//defines a new field variable
-//static Field *allocate_field(int,int);
-
 
 //sets flags for ghost and buffer cells
 void set_ghost_buffer_flag(Domain);

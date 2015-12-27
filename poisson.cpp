@@ -1,4 +1,4 @@
-#include "parallel_poisson.h"
+#include "poisson.h"
 namespace poisson {
 
 /********************************************************
@@ -227,37 +227,6 @@ void set_bc(Field *phi){
 
 } 
 
-
-void write_output(Domain domain, int proc_rank) {
-
-	int i,l,m;
-	int N_local = domain.u->N;
-	int N_local_x = domain.u->Nx;
-	FILE *fp;
-
-	char filename[10];
-
-
-	sprintf(filename, "data%d", proc_rank);
-	
-
-	fp = fopen(filename, "w");
-	
-	
-	for(i=0;i<N_local;i++){
-		if(domain.u->bc[i] == NONE){
-			l=i%N_local_x;
-			m=(int) i/N_local_x;
-		
-			fprintf(fp,"%lf %lf %lf\n", (l+offset[X_DIR])*(domain.constant->h), (m+offset[Y_DIR])*(domain.constant->h), domain.u->val[i]);
-		}
-	}
-
-	fclose(fp);	
-
-
-}
-
 }
 
 
@@ -278,11 +247,6 @@ int main(int argc, char **argv){
 	//Setting up virtual process grid topology - to be done immediately after MPI Initialization  
 	setup_proc_grid();	
 	
-
-
-	//Defining a domain of type Domain
-	Domain domain;
-
 	//Defining a constant of type Constant
 	Constant constant;
 	
@@ -304,12 +268,6 @@ int main(int argc, char **argv){
 	int N_local_y = N_int_local_y + 2;
 	int N_local = N_local_x * N_local_y;	
 
-	//offset of cell numbering for the subdomain
-	offset[X_DIR] = P_grid_coord[X_DIR] * N_int_local_x;
-	offset[Y_DIR] = P_grid_coord[Y_DIR] * N_int_local_y;
-
-//	printf("offset is %d\n", offset[X_DIR]);
-
 
 	//Defining the values of the members of constant	
 	constant.h = 0.1;
@@ -317,9 +275,14 @@ int main(int argc, char **argv){
 
 	//Defining a new scalar field	
 	Field u( N_local_x, N_local_y); 
-//	Field *u;
-//	u = &U;
 	
+	//Defining a domain of type Domain
+	Domain domain(&u,&constant);
+	
+	
+	//Equating the address of the field u to the member u of the domain
+	//domain.u = &u;
+	//domain.constant = &constant;
 	
 	int i, l, m;
 	//Initializing all boundary condition values to zero
@@ -333,9 +296,6 @@ int main(int argc, char **argv){
 	u.bc_val[YMAX] = 1.0;
 	u.bc_val[YMIN] = 1.0;
 
-	//Equating the address of the field u to the member u of the domain
-	domain.u = &u;
-	domain.constant = &constant;
 
 	//Assigning different flags to different boundary conditions
 	set_ghost_buffer_flag(domain);
@@ -353,9 +313,6 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	jacobi(&u, N_local_x, N_local_y, constant);
-
-	//calling gauss seidel solver
-//	gauss_seidel(&u, N_Cells_x, N_Cells_y, constant);
 
 
 	write_output(domain,proc_rank);

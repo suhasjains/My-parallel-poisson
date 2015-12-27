@@ -39,7 +39,6 @@ void setup_proc_grid() {
 //Packing data for communication across processes
 void setup_MPI_datatypes(int N_int_x, int N_int_y, int N_x){
 
-//      int N_int_x, N_int_y, N_x;
 
         //Datatype for horizontal data exchange
         MPI_Type_vector(N_int_y, 1, N_x, MPI_DOUBLE, &exchange_buffer_type[X_DIR]);

@@ -1,5 +1,5 @@
-#ifndef VARIABLES_H
-#define VARIABLES_H
+#ifndef _VARIABLES_H
+#define _VARIABLES_H
 #include<string.h>	//for memcpy
 #include<string>	//for strings
 
@@ -120,10 +120,18 @@ class Constant{
 class Domain{
 
 	public:
-        	Field *u;
+        //Members
+		Field *u;
 		Constant *constant;
+	
+	//Constructors
+	Domain( Field* field, Constant* con) : u(field), constant(con) {
+
+	}
+	
 	private:
 	protected:
+
 };
 
 

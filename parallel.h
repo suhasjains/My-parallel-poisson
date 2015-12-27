@@ -1,7 +1,7 @@
 #ifndef _PARALLEL_H
 #define _PARALLEL_H
 #include "mpi.h"
-
+#include "variables.h"
 namespace poisson {
 
 //Parallelization variables
