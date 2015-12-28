@@ -1,5 +1,5 @@
-#include "output.h"
-
+//#include "output.h"
+#include "poisson.h"
 namespace poisson {
 
 void write_output(Domain domain, int proc_rank) {
