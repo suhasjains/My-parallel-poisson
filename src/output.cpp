@@ -24,12 +24,12 @@ void write_output(Domain domain, int proc_rank) {
 
 
         for(i=0;i<N_local;i++){
-               // if(domain.u->bc[i] == NONE){
+                if(domain.u->bc[i] == NONE){
                         l=i%N_local_x;
                         m=(int) i/N_local_x;
 
                         fprintf(fp,"%lf %lf %lf\n", (l+offset[X_DIR])*(domain.constant->h), (m+offset[Y_DIR])*(domain.constant->h), domain.u->val[i]);
-                //}
+                }
         }
 
         fclose(fp);

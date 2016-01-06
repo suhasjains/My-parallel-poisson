@@ -138,7 +138,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
         int N = Nx * Ny;
         double global_res = 1.0;
 	
-	double relax = 1.3;
+	double relax = 1.5;
 	double prev_val, curr_val;
 
         long int loop = 0;
@@ -147,7 +147,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
         Field temp( Nx, Ny);
 
         //Starting the iteration loop
-        while(global_res > pow(10,-12)){
+        while(global_res > pow(10,-10)){
 
                 //making res 0 so that any error greater than 0 can be equated to this
                 res = 0.0;
@@ -291,7 +291,8 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 
 		}
 		
-		else temp->val[P] = phi->val[P];
+//		else temp->val[P] = phi->val[P];
+		//else printf("Yes\n");
 
 	}
 
@@ -313,10 +314,18 @@ void solve_SD(Field* phi, Constant constant) {
 //	temp = new double[N];
 //	x = new double[N];
 
-	Field temp(Nx, Ny);
-	Field res(Nx, Ny);
-	Field x(Nx, Ny);
+	//Field temp(Nx, Ny);
+	//Field res(Nx, Ny);
+	//Field x(Nx, Ny);
 
+
+	Field res = *phi;
+	Field temp = *phi;
+	Field x = *phi;
+	
+	res.set_field_value(0.0);
+	x.set_field_value(0.0);
+	temp.set_field_value(0.0);
 
 
 	//calculates Ax
@@ -326,44 +335,57 @@ void solve_SD(Field* phi, Constant constant) {
 	//calculates residual and residual norm
 	del = 0.0;
 	for(i = 0 ; i < N ; i++) {
-		res.val[i] = constant.f - temp.val[i];
-		del += res.val[i]*res.val[i]; 		
+	//	if(res.bc[i]!=NONE) {
+	//		printf("f = %e temp.val[i] = %e\n",constant.f,temp.val[i]);
+	//	}
+		if(res.bc[i]==NONE) {
+			res.val[i] = constant.f - temp.val[i];
+			del += res.val[i]*res.val[i]; 		
+		}
 	}
-        
-	printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+        //printf("del = %e\n", del);
+	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 
 	//initial vector
-	for(i = 0 ; i < N ; i++)
-		x.val[i] =  phi->val[i];  
-	
-	//while (del > 10E-10) {
-	while (loop < 3) {
+	for(i = 0 ; i < N ; i++) {
+		if(phi->bc[i]==NONE) {
+			x.val[i] =  phi->val[i];  
+		}
+	}	
 
-		for(i = 0 ; i < N ; i++)
-			phi->val[i] = res.val[i];
+	while (del > 10E-10) {
+	//while (loop < 3000) {
 
 		//calculates Ar
-		compute_AX(phi,&temp,constant);
+		compute_AX(&res,&temp,constant);
 			
 		//calculates alpha
 		denom = 0.0;	
-		for(i = 0 ; i < N ; i++) 
-			denom += res.val[i]*temp.val[i];
-
-		alpha = del/denom;
- 		
-
-		//update vector
-		for(i = 0 ; i < N ; i++)
-			x.val[i] = x.val[i] + alpha*res.val[i]; 
-		
-		//update residual and residual norm	
 		for(i = 0 ; i < N ; i++) {
-			res.val[i] = res.val[i] - alpha*temp.val[i]; 
-			del += res.val[i]*res.val[i]; 		
+			if(res.bc[i]==NONE) {
+				denom += res.val[i]*temp.val[i];
+			}
 		}
 
-        	printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+		alpha = del/denom;
+
+		//update vector
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {	
+				x.val[i] = x.val[i] + alpha*res.val[i]; 
+			}
+		}
+	
+		del = 0.0;
+		//update residual and residual norm	
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {
+				res.val[i] = res.val[i] - alpha*temp.val[i]; 
+				del += res.val[i]*res.val[i]; 		
+			}
+		}
+
+        	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 		
 		
 		loop++;
@@ -371,8 +393,11 @@ void solve_SD(Field* phi, Constant constant) {
 	}	
 	
 	//final vector
-	for(i = 0 ; i < N ; i++)
-		phi->val[i] = x.val[i];  
+	for(i = 0 ; i < N ; i++) {
+		if(phi->bc[i]==NONE) {
+			phi->val[i] = x.val[i];  
+		}
+	}
 
         printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 		
@@ -453,7 +478,7 @@ int main(int argc, char **argv){
 
 	//Defining the values of the members of constant	
 	constant.h = 0.05;
-	constant.f = 0.0;
+	constant.f = 1.0;
 
 	//Defining a new scalar field	
 	Field u( N_local_x, N_local_y); 
@@ -488,8 +513,8 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
-	//gauss_seidel(&u, N_local_x, N_local_y, constant);
-	solve_SD(&u, constant);
+	gauss_seidel(&u, N_local_x, N_local_y, constant);
+	//solve_SD(&u, constant);
 
 	//writes output to the file
 	write_output(domain,proc_rank);
