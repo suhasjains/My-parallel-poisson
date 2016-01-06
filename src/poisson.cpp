@@ -237,7 +237,7 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
                         }
                 }
-				printf("My residual = %g and I am %d\n",res,proc_rank); 
+				//printf("My residual = %g and I am %d\n",res,proc_rank); 
 
                 //if(loop%10==0)  MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
 		MPI_Allreduce(&res, &global_res, 1, MPI_DOUBLE, MPI_MAX, grid_comm);
@@ -251,6 +251,135 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 
 
 //Steepest gradient solver
+void compute_AX(Field* phi, Field* temp, Constant constant) {
+
+	int i, l, m;
+	int Nx = phi->Nx;
+	int Ny = phi->Ny; 
+	int N = Nx*Ny;	
+        double u_E, u_W, u_N, u_S, u_P;
+
+//	for(i = 0 ; i < N ; i++)
+//		temp[i] = 0.0;
+
+	temp->set_field_value(0.0);
+	
+	
+	for(i=0;i<N;i++){
+		if(phi->bc[i] == NONE){ 
+			l=i%Nx;
+			m=(int) i/Nx;
+
+			u_E = phi->val[EAST];
+			u_W = phi->val[WEST];
+			u_N = phi->val[NORTH];
+			u_S = phi->val[SOUTH];
+			u_P = phi->val[P];
+		
+			if(l==1&&P_grid_left==MPI_PROC_NULL)		temp->val[P] += 2.0*u_W - u_P;
+			else 	 					temp->val[P] += u_W;
+			if(l==Nx-2&&P_grid_right==MPI_PROC_NULL) 	temp->val[P] += 2.0*u_E - u_P;
+			else 						temp->val[P] += u_E;
+			if(m==1&&P_grid_bottom==MPI_PROC_NULL)		temp->val[P] += 2.0*u_S - u_P;
+			else 						temp->val[P] += u_S;
+			if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)		temp->val[P] += 2.0*u_N - u_P;
+			else 						temp->val[P] += u_N;
+
+			temp->val[P] -= 4.0*u_P;
+			temp->val[P] /= pow(constant.h,2);
+
+
+		}
+		
+		else temp->val[P] = phi->val[P];
+
+	}
+
+	return;
+}
+
+//Steepest descent solver
+void solve_SD(Field* phi, Constant constant) {
+
+	long int loop = 0;
+//	double *res, *temp, *x, *xo;
+	double del, denom, alpha;
+	int i, l, m;
+	int Nx = phi->Nx;
+	int Ny = phi->Ny; 
+	int N = Nx*Ny;	
+
+//	res = new double[N];
+//	temp = new double[N];
+//	x = new double[N];
+
+	Field temp(Nx, Ny);
+	Field res(Nx, Ny);
+	Field x(Nx, Ny);
+
+
+
+	//calculates Ax
+	compute_AX(phi,&temp,constant);
+
+
+	//calculates residual and residual norm
+	del = 0.0;
+	for(i = 0 ; i < N ; i++) {
+		res.val[i] = constant.f - temp.val[i];
+		del += res.val[i]*res.val[i]; 		
+	}
+        
+	printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+
+	//initial vector
+	for(i = 0 ; i < N ; i++)
+		x.val[i] =  phi->val[i];  
+	
+	//while (del > 10E-10) {
+	while (loop < 3) {
+
+		for(i = 0 ; i < N ; i++)
+			phi->val[i] = res.val[i];
+
+		//calculates Ar
+		compute_AX(phi,&temp,constant);
+			
+		//calculates alpha
+		denom = 0.0;	
+		for(i = 0 ; i < N ; i++) 
+			denom += res.val[i]*temp.val[i];
+
+		alpha = del/denom;
+ 		
+
+		//update vector
+		for(i = 0 ; i < N ; i++)
+			x.val[i] = x.val[i] + alpha*res.val[i]; 
+		
+		//update residual and residual norm	
+		for(i = 0 ; i < N ; i++) {
+			res.val[i] = res.val[i] - alpha*temp.val[i]; 
+			del += res.val[i]*res.val[i]; 		
+		}
+
+        	printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+		
+		
+		loop++;
+
+	}	
+	
+	//final vector
+	for(i = 0 ; i < N ; i++)
+		phi->val[i] = x.val[i];  
+
+        printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+		
+
+	return;
+}
+
 
 //Conjugate gradient solver
 
@@ -339,10 +468,10 @@ int main(int argc, char **argv){
 	}
 	
 	//Setting up boundary condition values
-	u.bc_val[XMAX] = 1.0;
+	u.bc_val[XMAX] = 2.0;
 	u.bc_val[XMIN] = 2.0;
-	u.bc_val[YMAX] = 3.0;
-	u.bc_val[YMIN] = 4.0;
+	u.bc_val[YMAX] = 2.0;
+	u.bc_val[YMIN] = 2.0;
 
 
 	//Assigning different flags to different boundary conditions
@@ -359,7 +488,8 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
-	gauss_seidel(&u, N_local_x, N_local_y, constant);
+	//gauss_seidel(&u, N_local_x, N_local_y, constant);
+	solve_SD(&u, constant);
 
 	//writes output to the file
 	write_output(domain,proc_rank);

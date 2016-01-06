@@ -162,6 +162,12 @@ void jacobi(Field, int, int, Constant);
 //Gauss seidel solver 
 void gauss_seidel(Field, int, int, Constant);
 
+//Steepest descent solver
+void solve_SD(Field*, Constant); 
+
+//AX maxtrix multiplication
+void compute_AX(Field*, double*, Constant);
+
 //Sets boundary condition values to boundary cells
 void set_bc(Field);
 
