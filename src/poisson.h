@@ -165,6 +165,9 @@ void gauss_seidel(Field, int, int, Constant);
 //Steepest descent solver
 void solve_SD(Field*, Constant); 
 
+//Conjugate gradient solver
+void solve_CG(Field*, Constant); 
+
 //AX maxtrix multiplication
 void compute_AX(Field*, double*, Constant);
 

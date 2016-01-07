@@ -1,8 +1,10 @@
 #Poisson Equation Solver
 
-Parallel Solver:
+Parallel in-house Solvers:
 * Jacobi solver
 * Red-Black Gauss-Seidel with successive over relaxation
+* Steepest descent
+* Conjugate gradient
 
 Code style:
 * Written using OOPS in C++.
@@ -24,7 +26,7 @@ Change log:
 * Red-Black Gauss-Seidel solver added.
 
 Things to do:
-* Parllelize Conjugate gradient solver.
+* Parllelize Bi-Conjugate Gradient STABilized solver.
 * Non-blocking communication is to be tested.
 * update report.pptx
 * Mesh importing package to be added

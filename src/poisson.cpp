@@ -293,7 +293,7 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 
 		}
 		
-//		else temp->val[P] = phi->val[P];
+		else temp->val[P] = constant.f;
 		//else printf("Yes\n");
 
 	}
@@ -305,7 +305,6 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 void solve_SD(Field* phi, Constant constant) {
 
 	long int loop = 0;
-//	double *res, *temp, *x, *xo;
 	double del, alpha, global_del;
 	double rTAr, global_rTAr;
 	int i, l, m;
@@ -313,13 +312,6 @@ void solve_SD(Field* phi, Constant constant) {
 	int Ny = phi->Ny; 
 	int N = Nx*Ny;	
 
-//	res = new double[N];
-//	temp = new double[N];
-//	x = new double[N];
-
-	//Field temp(Nx, Ny);
-	//Field res(Nx, Ny);
-	//Field x(Nx, Ny);
 
 
 	Field res = *phi;
@@ -338,16 +330,11 @@ void solve_SD(Field* phi, Constant constant) {
 	//calculates residual and residual norm
 	del = 0.0;
 	for(i = 0 ; i < N ; i++) {
-	//	if(res.bc[i]!=NONE) {
-	//		printf("f = %e temp.val[i] = %e\n",constant.f,temp.val[i]);
-	//	}
 		if(res.bc[i]==NONE) {
 			res.val[i] = constant.f - temp.val[i];
 			del += res.val[i]*res.val[i]; 		
 		}
 	}
-        //printf("del = %e\n", del);
-	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 
 	//get the global summation of the norm
 	MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
@@ -403,7 +390,6 @@ void solve_SD(Field* phi, Constant constant) {
 			}
 		}
 
-        	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 		
 		//get the global summation of the norm
 		MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
@@ -427,8 +413,139 @@ void solve_SD(Field* phi, Constant constant) {
 }
 
 
-//Conjugate gradient solver
 
+
+//Conjugate gradient solver
+void solve_CG(Field* phi, Constant constant) {
+
+	long int loop = 0;
+	double del, global_del, global_del_old;
+	double dTAd, global_dTAd;
+	int i, l, m;
+	int Nx = phi->Nx;
+	int Ny = phi->Ny; 
+	int N = Nx*Ny;	
+	double beta, alpha;
+
+	Field res = *phi;
+	Field temp = *phi;
+	Field x = *phi;
+	Field dir = *phi;
+	
+	res.set_field_value(0.0);
+	x.set_field_value(0.0);
+	temp.set_field_value(0.0);
+	dir.set_field_value(0.0);
+	
+
+	//initial vector
+	for(i = 0 ; i < N ; i++) {
+			x.val[i] =  phi->val[i];  
+	}	
+
+	//calculate Ax
+	compute_AX(&x,&temp,constant);
+
+
+	//calculate residual and direction 
+	for(i = 0 ; i < N ; i++) {
+			res.val[i] = constant.f - temp.val[i];
+			dir.val[i] = res.val[i];
+	}
+	
+	//calcualte reisdual norm
+	del = 0.0;
+	for(i = 0 ; i < N ; i++) {
+		if(res.bc[i]==NONE) {
+			del += res.val[i]*res.val[i]; 		
+		}
+	}
+
+	//get the global summation of the norm
+	MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
+	
+
+
+	while (global_del > 10E-10) {
+	//while (loop < 3000) {
+
+		//calculates Ar
+		compute_AX(&dir,&temp,constant);
+			
+		//calculates alpha
+		dTAd = 0.0;	
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {
+				dTAd += dir.val[i]*temp.val[i];
+			}
+		}
+	
+		//get the global summation of the norm
+		MPI_Allreduce(&dTAd, &global_dTAd, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
+
+		alpha = global_del/global_dTAd;
+
+		//update vector
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {	
+				x.val[i] = x.val[i] + alpha*dir.val[i]; 
+			}
+		}
+
+
+
+		if(loop%50==0) compute_AX(&x, &temp, constant);
+	
+		//update residual and residual norm	
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {
+				if(loop%50==0) 
+					res.val[i] = constant.f - temp.val[i];
+
+				else res.val[i] = res.val[i] - alpha*temp.val[i]; 
+			}
+		}
+		
+
+		global_del_old = global_del; 
+
+		//calcualte reisdual norm
+		del = 0.0;
+		for(i = 0 ; i < N ; i++) {
+			if(res.bc[i]==NONE) {
+				del += res.val[i]*res.val[i]; 		
+			}
+		}
+
+	
+	
+		//get the global summation of the norm
+		MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
+		
+		beta = global_del/global_del_old;
+	
+		//update the direction
+		for(i = 0 ; i < N ; i++) {
+				dir.val[i] = res.val[i] + beta*dir.val[i]; 
+		}
+      		
+	
+		loop++;
+
+	}	
+	
+	//final vector
+	for(i = 0 ; i < N ; i++) {
+		if(phi->bc[i]==NONE) {
+			phi->val[i] = x.val[i];  
+		}
+	}
+
+        printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", global_del, loop, proc_rank);
+		
+
+	return;
+}
 
 //Setting boundary condition values to boundary cells
 void set_bc(Field *phi){
@@ -514,10 +631,10 @@ int main(int argc, char **argv){
 	}
 	
 	//Setting up boundary condition values
-	u.bc_val[XMAX] = 1.0;
+	u.bc_val[XMAX] = 2.0;
 	u.bc_val[XMIN] = 2.0;
-	u.bc_val[YMAX] = 3.0;
-	u.bc_val[YMIN] = 4.0;
+	u.bc_val[YMAX] = 2.0;
+	u.bc_val[YMIN] = 2.0;
 
 
 	//Assigning different flags to different boundary conditions
@@ -534,9 +651,10 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
-	//gauss_seidel(&u, N_local_x, N_local_y, constant);
-	solve_SD(&u, constant);
-
+	gauss_seidel(&u, N_local_x, N_local_y, constant);
+	//solve_SD(&u, constant);
+	//solve_CG(&u, constant);
+	
 	//writes output to the file
 	write_output(domain,proc_rank);
 
