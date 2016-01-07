@@ -264,6 +264,8 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 
 	temp->set_field_value(0.0);
 	
+	//exchanges buffer cells
+  	exchange_buffers(phi, Nx, Ny);
 	
 	for(i=0;i<N;i++){
 		if(phi->bc[i] == NONE){ 
@@ -304,7 +306,8 @@ void solve_SD(Field* phi, Constant constant) {
 
 	long int loop = 0;
 //	double *res, *temp, *x, *xo;
-	double del, denom, alpha;
+	double del, alpha, global_del;
+	double rTAr, global_rTAr;
 	int i, l, m;
 	int Nx = phi->Nx;
 	int Ny = phi->Ny; 
@@ -346,6 +349,10 @@ void solve_SD(Field* phi, Constant constant) {
         //printf("del = %e\n", del);
 	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
 
+	//get the global summation of the norm
+	MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
+	
+
 	//initial vector
 	for(i = 0 ; i < N ; i++) {
 		if(phi->bc[i]==NONE) {
@@ -353,21 +360,24 @@ void solve_SD(Field* phi, Constant constant) {
 		}
 	}	
 
-	while (del > 10E-10) {
+	while (global_del > 10E-10) {
 	//while (loop < 3000) {
 
 		//calculates Ar
 		compute_AX(&res,&temp,constant);
 			
 		//calculates alpha
-		denom = 0.0;	
+		rTAr = 0.0;	
 		for(i = 0 ; i < N ; i++) {
 			if(res.bc[i]==NONE) {
-				denom += res.val[i]*temp.val[i];
+				rTAr += res.val[i]*temp.val[i];
 			}
 		}
+	
+		//get the global summation of the norm
+		MPI_Allreduce(&rTAr, &global_rTAr, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
 
-		alpha = del/denom;
+		alpha = global_del/global_rTAr;
 
 		//update vector
 		for(i = 0 ; i < N ; i++) {
@@ -375,17 +385,28 @@ void solve_SD(Field* phi, Constant constant) {
 				x.val[i] = x.val[i] + alpha*res.val[i]; 
 			}
 		}
+
+
+		if(loop%50==0) compute_AX(&x, &temp, constant);
 	
 		del = 0.0;
 		//update residual and residual norm	
 		for(i = 0 ; i < N ; i++) {
 			if(res.bc[i]==NONE) {
-				res.val[i] = res.val[i] - alpha*temp.val[i]; 
+				
+				if(loop%50==0) 
+					res.val[i] = constant.f - temp.val[i];
+
+				else res.val[i] = res.val[i] - alpha*temp.val[i]; 
+				
 				del += res.val[i]*res.val[i]; 		
 			}
 		}
 
         	//printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+		
+		//get the global summation of the norm
+		MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
 		
 		
 		loop++;
@@ -399,7 +420,7 @@ void solve_SD(Field* phi, Constant constant) {
 		}
 	}
 
-        printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", del, loop, proc_rank);
+        printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", global_del, loop, proc_rank);
 		
 
 	return;
@@ -456,8 +477,8 @@ int main(int argc, char **argv){
 	
 	
 	//Defining the number of total interior control volumes
-	int N_int_x = 20;
-	int N_int_y = 20;
+	int N_int_x = 100;
+	int N_int_y = 100;
 
 	//With ghost cells
 	int N_Cells_x = N_int_x + 2;
@@ -493,10 +514,10 @@ int main(int argc, char **argv){
 	}
 	
 	//Setting up boundary condition values
-	u.bc_val[XMAX] = 2.0;
+	u.bc_val[XMAX] = 1.0;
 	u.bc_val[XMIN] = 2.0;
-	u.bc_val[YMAX] = 2.0;
-	u.bc_val[YMIN] = 2.0;
+	u.bc_val[YMAX] = 3.0;
+	u.bc_val[YMIN] = 4.0;
 
 
 	//Assigning different flags to different boundary conditions
@@ -513,8 +534,8 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
-	gauss_seidel(&u, N_local_x, N_local_y, constant);
-	//solve_SD(&u, constant);
+	//gauss_seidel(&u, N_local_x, N_local_y, constant);
+	solve_SD(&u, constant);
 
 	//writes output to the file
 	write_output(domain,proc_rank);
