@@ -116,7 +116,8 @@ class Constant{
         public:
                 double h;
                 double f;
-
+		Field *alpha;
+	
         private:
         protected:
 
@@ -169,7 +170,10 @@ void solve_SD(Field*, Constant);
 void solve_CG(Field*, Constant); 
 
 //AX maxtrix multiplication
-void compute_AX(Field*, double*, Constant);
+void linearpoisson_AX(Field*, double*, Constant);
+
+//AX maxtrix multiplication
+void nonlinearpoisson_AX(Field*, double*, Constant);
 
 //Sets boundary condition values to boundary cells
 void set_bc(Field);

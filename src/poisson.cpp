@@ -250,8 +250,8 @@ void gauss_seidel(Field *phi, int Nx, int Ny, Constant constant){
 }
 
 
-//Steepest gradient solver
-void compute_AX(Field* phi, Field* temp, Constant constant) {
+//computation of AX
+void linearpoisson_AX(Field* phi, Field* temp, Constant constant) {
 
 	int i, l, m;
 	int Nx = phi->Nx;
@@ -259,8 +259,6 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 	int N = Nx*Ny;	
         double u_E, u_W, u_N, u_S, u_P;
 
-//	for(i = 0 ; i < N ; i++)
-//		temp[i] = 0.0;
 
 	temp->set_field_value(0.0);
 	
@@ -301,6 +299,74 @@ void compute_AX(Field* phi, Field* temp, Constant constant) {
 	return;
 }
 
+
+
+//computation of AX
+void nonlinearpoisson_AX(Field* phi, Field* temp, Constant constant) {
+
+	int i, l, m;
+	int Nx = phi->Nx;
+	int Ny = phi->Ny; 
+	int N = Nx*Ny;	
+        double u_E, u_W, u_N, u_S, u_P;
+
+	double alpha_e, alpha_w, alpha_n, alpha_s;
+
+	Field *alpha = constant.alpha; 
+
+	temp->set_field_value(0.0);
+	
+	//exchanges buffer cells
+  	exchange_buffers(phi, Nx, Ny);
+	
+	for(i=0;i<N;i++){
+		if(phi->bc[i] == NONE){ 
+			l=i%Nx;
+			m=(int) i/Nx;
+
+			u_E = phi->val[EAST];
+			u_W = phi->val[WEST];
+			u_N = phi->val[NORTH];
+			u_S = phi->val[SOUTH];
+			u_P = phi->val[P];
+	
+			alpha_e = 2.0*alpha->val[EAST]*alpha->val[P]/(alpha->val[EAST] + alpha->val[P]);
+			alpha_w = 2.0*alpha->val[WEST]*alpha->val[P]/(alpha->val[WEST] + alpha->val[P]);
+			alpha_n = 2.0*alpha->val[NORTH]*alpha->val[P]/(alpha->val[NORTH] + alpha->val[P]);
+			alpha_s = 2.0*alpha->val[SOUTH]*alpha->val[P]/(alpha->val[SOUTH] + alpha->val[P]);
+
+			//printf("alpha_e=%e, alpha_w=%e, alpha_n=%e, alpha_s=%e, alpha=%e\n",alpha_e,alpha_w,alpha_n,alpha_s, alpha->val[i]);
+
+			if(l==1&&P_grid_left==MPI_PROC_NULL)		alpha_w = alpha->val[WEST];
+			if(l==Nx-2&&P_grid_right==MPI_PROC_NULL) 	alpha_e = alpha->val[EAST];
+			if(m==1&&P_grid_bottom==MPI_PROC_NULL)		alpha_s = alpha->val[SOUTH];
+			if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)		alpha_n = alpha->val[NORTH];
+
+	
+			if(l==1&&P_grid_left==MPI_PROC_NULL)		temp->val[P] += alpha_w*(2.0*u_W - u_P);
+			else 	 					temp->val[P] += alpha_w*u_W;
+			if(l==Nx-2&&P_grid_right==MPI_PROC_NULL) 	temp->val[P] += alpha_e*(2.0*u_E - u_P);
+			else 						temp->val[P] += alpha_e*u_E;
+			if(m==1&&P_grid_bottom==MPI_PROC_NULL)		temp->val[P] += alpha_s*(2.0*u_S - u_P);
+			else 						temp->val[P] += alpha_s*u_S;
+			if(m==Ny-2&&P_grid_top==MPI_PROC_NULL)		temp->val[P] += alpha_n*(2.0*u_N - u_P);
+			else 						temp->val[P] += alpha_n*u_N;
+
+			temp->val[P] -= (alpha_e + alpha_w + alpha_n + alpha_s)*u_P;
+			temp->val[P] /= pow(constant.h,2);
+
+
+		}
+		
+		else temp->val[P] = constant.f;
+		//else printf("Yes\n");
+
+	}
+
+	return;
+}
+
+
 //Steepest descent solver
 void solve_SD(Field* phi, Constant constant) {
 
@@ -324,7 +390,7 @@ void solve_SD(Field* phi, Constant constant) {
 
 
 	//calculates Ax
-	compute_AX(phi,&temp,constant);
+	linearpoisson_AX(phi,&temp,constant);
 
 
 	//calculates residual and residual norm
@@ -351,7 +417,7 @@ void solve_SD(Field* phi, Constant constant) {
 	//while (loop < 3000) {
 
 		//calculates Ar
-		compute_AX(&res,&temp,constant);
+		linearpoisson_AX(&res,&temp,constant);
 			
 		//calculates alpha
 		rTAr = 0.0;	
@@ -374,7 +440,7 @@ void solve_SD(Field* phi, Constant constant) {
 		}
 
 
-		if(loop%50==0) compute_AX(&x, &temp, constant);
+		if(loop%50==0) linearpoisson_AX(&x, &temp, constant);
 	
 		del = 0.0;
 		//update residual and residual norm	
@@ -444,7 +510,7 @@ void solve_CG(Field* phi, Constant constant) {
 	}	
 
 	//calculate Ax
-	compute_AX(&x,&temp,constant);
+	nonlinearpoisson_AX(&x,&temp,constant);
 
 
 	//calculate residual and direction 
@@ -470,7 +536,7 @@ void solve_CG(Field* phi, Constant constant) {
 	//while (loop < 3000) {
 
 		//calculates Ar
-		compute_AX(&dir,&temp,constant);
+		nonlinearpoisson_AX(&dir,&temp,constant);
 			
 		//calculates alpha
 		dTAd = 0.0;	
@@ -494,7 +560,7 @@ void solve_CG(Field* phi, Constant constant) {
 
 
 
-		if(loop%50==0) compute_AX(&x, &temp, constant);
+		if(loop%50==0) nonlinearpoisson_AX(&x, &temp, constant);
 	
 		//update residual and residual norm	
 		for(i = 0 ; i < N ; i++) {
@@ -615,8 +681,20 @@ int main(int argc, char **argv){
 	Constant constant;
 
 	//Defining the values of the members of constant	
-	constant.h = 0.05;
-	constant.f = 1.0;
+	constant.h = 0.01;
+	constant.f = 10.0;
+	Field alpha( N_local_x, N_local_y); 
+	constant.alpha = &alpha;
+	//alpha.set_field_value(2.0);
+	for(i=0;i<N_local;i++) {
+                l = i%N_local_x;
+                m = (int) i/N_local_x;
+
+                if(l>=N_local_x/4 && l<=3*N_local_x/4 && m>=N_local_y/4 && m<=3*N_local_y/4) 
+                	alpha.val[i] = 1000.0;
+		else 	alpha.val[i] = 1.0;
+        } 
+
 
 	//Defining a new scalar field	
 	Field u( N_local_x, N_local_y); 
@@ -631,10 +709,10 @@ int main(int argc, char **argv){
 	}
 	
 	//Setting up boundary condition values
-	u.bc_val[XMAX] = 2.0;
-	u.bc_val[XMIN] = 2.0;
-	u.bc_val[YMAX] = 2.0;
-	u.bc_val[YMIN] = 2.0;
+	u.bc_val[XMAX] = 10.0;
+	u.bc_val[XMIN] = 10.0;
+	u.bc_val[YMAX] = 10.0;
+	u.bc_val[YMIN] = 10.0;
 
 
 	//Assigning different flags to different boundary conditions
@@ -651,9 +729,9 @@ int main(int argc, char **argv){
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
-	gauss_seidel(&u, N_local_x, N_local_y, constant);
+	//gauss_seidel(&u, N_local_x, N_local_y, constant);
 	//solve_SD(&u, constant);
-	//solve_CG(&u, constant);
+	solve_CG(&u, constant);
 	
 	//writes output to the file
 	write_output(domain,proc_rank);
