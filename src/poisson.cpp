@@ -318,7 +318,7 @@ void nonlinearpoisson_AX(Field* phi, Field* temp, Constant constant) {
 	
 	//exchanges buffer cells
   	exchange_buffers(phi, Nx, Ny);
-	
+
 	for(i=0;i<N;i++){
 		if(phi->bc[i] == NONE){ 
 			l=i%Nx;
@@ -533,7 +533,7 @@ void solve_CG(Field* phi, Constant constant) {
 
 
 	while (global_del > 10E-10) {
-	//while (loop < 3000) {
+	//while (loop < 20000) {
 
 		//calculates Ar
 		nonlinearpoisson_AX(&dir,&temp,constant);
@@ -584,6 +584,7 @@ void solve_CG(Field* phi, Constant constant) {
 		}
 
 	
+        	printf("Maximum residual norm is %e and number of iterations are %ld and I am process %d \n", global_del, loop, proc_rank);
 	
 		//get the global summation of the norm
 		MPI_Allreduce(&del, &global_del, 1, MPI_DOUBLE, MPI_SUM, grid_comm);
@@ -686,14 +687,6 @@ int main(int argc, char **argv){
 	Field alpha( N_local_x, N_local_y); 
 	constant.alpha = &alpha;
 	//alpha.set_field_value(2.0);
-	for(i=0;i<N_local;i++) {
-                l = i%N_local_x;
-                m = (int) i/N_local_x;
-
-                if(l>=N_local_x/4 && l<=3*N_local_x/4 && m>=N_local_y/4 && m<=3*N_local_y/4) 
-                	alpha.val[i] = 1000.0;
-		else 	alpha.val[i] = 1.0;
-        } 
 
 
 	//Defining a new scalar field	
@@ -726,6 +719,42 @@ int main(int argc, char **argv){
 
 	//Assigning the ghost cells the respective boundary face values
 	set_bc(&u);
+
+	//Initial condition for alpha field
+	for(i=0;i<N_local;i++) {
+		if(u.bc[i] == NONE || P_grid_left==MPI_PROC_NULL || P_grid_right==MPI_PROC_NULL || P_grid_top==MPI_PROC_NULL || P_grid_bottom==MPI_PROC_NULL) {
+	                l = i%N_local_x;
+	                m = (int) i/N_local_x;
+	
+			if(P_grid_rank==0) {
+	                	if(l>=3*N_local_x/4 && m>=3*N_local_y/4) 
+	                		alpha.val[i] = 0.01;
+				else 	alpha.val[i] = 1.0;
+			}
+	
+			if(P_grid_rank==1) {
+	                	if(l<=N_local_x/4 && m>=3*N_local_y/4) 
+	                		alpha.val[i] = 0.01;
+				else 	alpha.val[i] = 1.0;
+			}
+	
+			if(P_grid_rank==2) {
+	                	if(l>=3*N_local_x/4 && m<=N_local_y/4) 
+	                		alpha.val[i] = 0.01;
+				else 	alpha.val[i] = 1.0;
+			}
+	
+			if(P_grid_rank==3) {
+	                	if(l<=N_local_x/4 && m<=N_local_y/8) 
+	                		alpha.val[i] = 0.01;
+				else 	alpha.val[i] = 1.0;
+			}
+		}
+        } 
+
+	//exchanging buffers of the alpha field only once	
+	exchange_buffers(&alpha, N_local_x, N_local_y);	
+
 
 	//Calling jacobi solver
 	//jacobi(&u, N_local_x, N_local_y, constant);
