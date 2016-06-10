@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Parallel-Poisson-Solver by suhasjains</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Parallel-Poisson-Solver</h1>
+        <p>Poisson equation solver written in C++ with distributed memory parallelization using MPI</p>
+
+        <p class="view"><a href="https://github.com/suhasjains/My-parallel-poisson">View the Project on GitHub <small>suhasjains/My-parallel-poisson</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/suhasjains/My-parallel-poisson/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/suhasjains/My-parallel-poisson/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/suhasjains/My-parallel-poisson">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="poisson-equation-solver" class="anchor" href="#poisson-equation-solver" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Poisson Equation Solver</h1>
+
+<p>Parallel in-house Solvers:</p>
+
+<ul>
+<li>Jacobi solver</li>
+<li>Red-Black Gauss-Seidel with successive over relaxation</li>
+<li>Steepest descent</li>
+<li>Conjugate gradient</li>
+</ul>
+
+<p>Code style:</p>
+
+<ul>
+<li>Written using OOPS in C++.</li>
+</ul>
+
+<p>Usage:</p>
+
+<ul>
+<li>To compile parallel solver on local machine machine/cluster: make</li>
+<li>changed - (To compile parallel solver on Cray supercomputer: CC -O3 parallel_poisson.c -o run)</li>
+<li>To run on cluster: qsub pp.sh</li>
+<li>changed - (To run on Cray supercomputer: qsub submit.sh) </li>
+<li>Type plot_output within an octave terminal to see the surface plot of the output or run the python script plot_output.py</li>
+</ul>
+
+<p>Changelog:</p>
+
+<ul>
+<li>Parallelization on distributed memory system using MPI.</li>
+<li>Domain decomposition is done.</li>
+<li>Communication of buffer cells is working now.</li>
+<li>Global residual added now.</li>
+<li>Speedup tested upto 16 processes on local machine.</li>
+<li>Speedup tested upto 720 processes on Cray XC40.</li>
+<li>Red-Black Gauss-Seidel solver added.</li>
+</ul>
+
+<p>Things to do:</p>
+
+<ul>
+<li>Parllelize Bi-Conjugate Gradient STABilized solver.</li>
+<li>Non-blocking communication is to be tested.</li>
+<li>update report.pptx</li>
+<li>Mesh importing package to be added</li>
+</ul>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/suhasjains">suhasjains</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
